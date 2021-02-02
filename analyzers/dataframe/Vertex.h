@@ -22,6 +22,16 @@
 #include "edm4hep/Vertex.h"
 
 
+struct FCCAnalysesVertex{
+     edm4hep::VertexData vertex;
+     ROOT::VecOps::RVec<int> reco_ind;
+     ROOT::VecOps::RVec<float> reco_chi2;
+     ROOT::VecOps::RVec< TVector3 >  updated_track_momentum_at_vertex;
+     ROOT::VecOps::RVec< TVectorD >  updated_track_parameters;
+     ROOT::VecOps::RVec<float> final_track_phases;
+
+};
+
 
 /// Return the number of tracks in a given track collection
 int get_nTracks(ROOT::VecOps::RVec<edm4hep::TrackState> tracks);
@@ -59,15 +69,26 @@ TVectorD Fill_a(TVectorD par, Double_t phi) ;
 TVectorD Fill_x0(TVectorD par) ;
 TVectorD Fill_x(TVectorD par, Double_t phi) ;
 
+TVectorD XPtoPar(TVector3 x, TVector3 p, Double_t Q);
+TVector3 ParToP(TVectorD Par);
+
+
 /// Preliminary estimate of the vertex position based on transformation of track into points and vertices into lines. No steering of track parameters,No error calculation. Units = millimeters 
 TVector3 VertexFitter0( ROOT::VecOps::RVec<edm4hep::TrackState> tracks ) ;
 
 
 /// Updated vertex (code from Franco Bedeschi), in millimeters
-edm4hep::VertexData  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> recoparticles,
+FCCAnalysesVertex  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> recoparticles,
 					ROOT::VecOps::RVec<edm4hep::TrackState> tracks ) ;
 
 
+FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::TrackState> tracks,
+                                        ROOT::VecOps::RVec<edm4hep::TrackState> thetracks ) ;
+
+//edm4hep::VertexData get_VertexData( FCCAnalysesVertex TheVertex) ;
+
+ROOT::VecOps::RVec< edm4hep::VertexData > get_VertexData( ROOT::VecOps::RVec< FCCAnalysesVertex > TheVertex );
+edm4hep::VertexData get_oneVertexData( FCCAnalysesVertex TheVertex ) ;
 
 #endif
 

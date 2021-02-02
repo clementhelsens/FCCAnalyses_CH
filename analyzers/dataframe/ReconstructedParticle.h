@@ -100,4 +100,15 @@ int getRP_n(ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> in);
 ROOT::VecOps::RVec<bool> getJet_btag(ROOT::VecOps::RVec<int> index, ROOT::VecOps::RVec<edm4hep::ParticleIDData> pid, ROOT::VecOps::RVec<float> values); 
 
 int getJet_ntags(ROOT::VecOps::RVec<bool> in);
+
+
+
+
+struct angular_separation {
+  angular_separation( int arg_delta); //  0, 1, 2 = max, min, average
+  int m_delta = 0;
+  float operator() (ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> in) ;
+};
+
+
 #endif

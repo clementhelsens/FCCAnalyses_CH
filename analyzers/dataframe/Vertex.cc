@@ -164,6 +164,59 @@ TMatrixDSym get_trackCov( edm4hep::TrackState &  atrack) {
 }
 
 
+TVector3 ParToP(TVectorD Par)
+{
+	double fB = 2;	// 2 Tesla
+
+	Double_t C    = Par(2);
+	Double_t phi0 = Par(1);
+	Double_t ct   = Par(4);
+	//
+	TVector3 Pval;
+	Double_t pt = fB*0.2998 / TMath::Abs(2 * C);
+	Pval(0) = pt*TMath::Cos(phi0);
+	Pval(1) = pt*TMath::Sin(phi0);
+	Pval(2) = pt*ct;
+	//
+  	return Pval;
+}
+
+
+TVectorD XPtoPar(TVector3 x, TVector3 p, Double_t Q)
+{
+
+        double fB = 2;  // 2 Tesla
+
+	//
+	TVectorD Par(5);
+	// Transverse parameters
+	Double_t a = -Q*fB*0.2998;			// Units are Tesla, GeV and meters
+	Double_t pt = p.Pt();
+	Double_t C = a / (2 * pt);			// Half curvature
+	//cout << "ObsTrk::XPtoPar: fB = " << fB << ", a = " << a << ", pt = " << pt << ", C = " << C << endl;
+	Double_t r2 = x.Perp2();
+	Double_t cross = x(0)*p(1) - x(1)*p(0);
+	Double_t T = TMath::Sqrt(pt*pt - 2 * a*cross + a*a*r2);
+	Double_t phi0 = TMath::ATan2((p(1) - a*x(0)) / T, (p(0) + a*x(1)) / T);	// Phi0
+	Double_t D;							// Impact parameter D
+	if (pt < 10.0) D = (T - pt) / a;
+	else D = (-2 * cross + a*r2) / (T + pt);
+	//
+	Par(0) = D;		// Store D
+	Par(1) = phi0;	// Store phi0
+	Par(2) = C;		// Store C
+	//Longitudinal parameters
+	Double_t B = C*TMath::Sqrt(TMath::Max(r2 - D*D,0.0) / (1 + 2 * C*D));
+	Double_t st = TMath::ASin(B) / C;
+	Double_t ct = p(2) / pt;
+	Double_t z0 = x(2) - ct*st;
+	//
+	Par(3) = z0;		// Store z0
+	Par(4) = ct;		// Store cot(theta)
+	//
+	return Par;
+}
+
 
 
 
@@ -465,18 +518,77 @@ TVectorD Fill_x(TVectorD par, Double_t phi)
 }
 //
 
-//Double_t VertexP(Int_t Ntr, ObsTrk **tracks, TVectorD &x, TMatrixDSym &covX)
 
-edm4hep::VertexData  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> recoparticles,
-                                        ROOT::VecOps::RVec<edm4hep::TrackState> thetracks )
 
+FCCAnalysesVertex  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> recoparticles,
+                                        ROOT::VecOps::RVec<edm4hep::TrackState> thetracks )  {
+
+	// input = a collection of recoparticles (in case one want to make associations to RecoParticles ?)
+	// and thetracks = the collection of all TrackState in the event
+
+ 	// retrieve the tracks associated to the recoparticles
+        ROOT::VecOps::RVec<edm4hep::TrackState> tracks = getRP2TRK( recoparticles, thetracks );
+	// and run the vertex fitter
+
+	FCCAnalysesVertex thevertex = VertexFitter_Tk( Primary, tracks, thetracks) ;
+
+        //fill the indices of the tracks
+        ROOT::VecOps::RVec<int> reco_ind;
+        int Ntr = tracks.size();
+        for (auto & p: recoparticles) {
+           if ( p.tracks_begin<thetracks.size()) {
+                reco_ind.push_back( p.tracks_begin );
+           }
+        }
+        if ( reco_ind.size() != Ntr ) std::cout << " ... problem in Vertex, size of reco_ind != Ntr " << std::endl;
+
+	thevertex.reco_ind = reco_ind;
+
+	return thevertex;
+}
+
+
+FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::TrackState> tracks, 
+					ROOT::VecOps::RVec<edm4hep::TrackState> thetracks )
 {
 
-        edm4hep::VertexData result;
+        // final results :
+        FCCAnalysesVertex TheVertex;
 
-        ROOT::VecOps::RVec<edm4hep::TrackState> tracks = getRP2TRK( recoparticles, thetracks );
+        edm4hep::VertexData result;
+        ROOT::VecOps::RVec<float> reco_chi2;
+        ROOT::VecOps::RVec< TVectorD >  updated_track_parameters;
+	ROOT::VecOps::RVec<int> reco_ind;
+	ROOT::VecOps::RVec<float> final_track_phases;
+        ROOT::VecOps::RVec< TVector3 >  updated_track_momentum_at_vertex;
+
+	TheVertex.vertex = result;
+	TheVertex.reco_chi2 = reco_chi2;
+	TheVertex.updated_track_parameters = updated_track_parameters;
+	TheVertex.reco_ind = reco_ind;
+	TheVertex.final_track_phases = final_track_phases;
+	TheVertex.updated_track_momentum_at_vertex = updated_track_momentum_at_vertex;
+
         int Ntr = tracks.size();
-        if ( Ntr <= 0) return result;
+        if ( Ntr <= 0) return TheVertex;
+
+        //fill the indices of the tracks
+        //for (auto & p: recoparticles) {
+	   //if ( p.tracks_begin<thetracks.size()) {
+	 	//reco_ind.push_back( p.tracks_begin );
+	   //}
+	//}
+        //if ( reco_ind.size() != Ntr ) std::cout << " ... problem in Vertex, size of reco_ind != Ntr " << std::endl;
+
+
+
+        Double_t *final_chi2 = new Double_t[Ntr];
+	Double_t *final_phases = new Double_t[Ntr];
+	std::vector< TVectorD > final_delta_alpha ;
+        TVectorD dummy(5);
+        for (int i=0; i < Ntr; i++) {
+	   final_delta_alpha.push_back( dummy );
+	}
 
 	Bool_t Debug = kFALSE;
 	//
@@ -503,6 +615,8 @@ edm4hep::VertexData  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Reco
 	TMatrixDSym **Di = new TMatrixDSym*[Ntr];		// W-WBW
 	TMatrixDSym **Wi = new TMatrixDSym*[Ntr];	// (ACA')^-1
 	TMatrixDSym **Winvi = new TMatrixDSym*[Ntr];	// ACA'
+        TMatrixD  **Ai = new TMatrixD*[Ntr];            // A
+	TMatrixDSym **Covi = new TMatrixDSym*[Ntr];     // Cov matrix of the track parameters
 	//
 	// Loop on tracks to calculate everything
 	//
@@ -534,6 +648,12 @@ edm4hep::VertexData  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Reco
 			edm4hep::TrackState t = tracks[i] ;
  			TVectorD par = get_trackParam( t ) ;
 			TMatrixDSym Cov = get_trackCov( t) ;
+                        Covi[i] = new TMatrixDSym(Cov);         // Store matrix
+			//std::cout << " Print Cov: " << std::endl;
+			//Cov.Print();
+			//std::cout << " print Covi " << std::endl;
+			//Covi[i] ->Print();
+
 			Double_t fs;
 			if (Ntry <= 0)
 			{
@@ -552,6 +672,7 @@ edm4hep::VertexData  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Reco
 			x0i[i] = new TVectorD(xs);	// Starting helix position
 			// W matrix = (A*C*A')^-1; W^-1 = A*C*A'
 			TMatrixD A = Fill_A(par, fs);
+                        Ai[i]  = new TMatrixD(A);	// Store matrix
 			TMatrixDSym Winv = Cov.Similarity(A);
 			//cout << "Track " << i << ", W^-1:" << endl; Winv.Print();
 			Winvi[i] = new TMatrixDSym(Winv);	// Store matrix
@@ -594,11 +715,30 @@ edm4hep::VertexData  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Reco
 		for (Int_t i = 0; i < Ntr; i++)
 		{
 			TVectorD lambda = (*Di[i])*(*x0i[i] - x);
+			//std::cout << " Track i = " << i << " lambda : " <<std::endl;
+			//lambda.Print();
 			TMatrixDSym Wm1 = *Winvi[i];
-			Chi2 += Wm1.Similarity(lambda);
+			Double_t addChi2 = Wm1.Similarity(lambda);;
+			Chi2 += addChi2;
+			final_chi2[i] = addChi2;
 			TVectorD a = *ai[i];
 			TVectorD b = (*Wi[i])*(x - *x0i[i]);
 			for (Int_t j = 0; j < 3; j++)fi[i] += a(j)*b(j) / a2i[i];
+			final_phases[i] = fi[i];
+
+			TMatrixD ta(TMatrixD::kTransposed, *Ai[i]);
+			//std::cout << " Print tA : " << std::endl;
+			//ta.Print();
+			TMatrixDSym kk(5);
+		        kk = *Covi[i];
+			//std::cout << " Print Cov : " << std::endl;
+			//kk.Print();
+			final_delta_alpha[i] =  kk * ta * lambda;  // that's minus delta_alpha 
+			//std::cout << " ... and final_delta_alpha is : " << std::endl;
+			//final_delta_alpha[i].Print();
+
+			
+
 		}
 		//
 		TVectorD dx = x - x0;
@@ -620,6 +760,8 @@ edm4hep::VertexData  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Reco
 		Wi[i]->Clear();
 		ai[i]->Clear();
 		Di[i]->Clear();
+		Ai[i]->Clear();
+		Covi[i]->Clear();
 	}
 		delete[] fi;		// Phases 
 		delete[] x0i;		// Track expansion point
@@ -628,6 +770,12 @@ edm4hep::VertexData  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Reco
 		delete [] Di;		// W-WBW
 		delete [] Wi;	// (ACA')^-1
 		delete [] Winvi;	// ACA'
+		delete[] Ai ;		// A
+		delete[] Covi;		// Cov
+
+	//delete final_chi2;
+	//delete final_phases;
+	//delete final_delta_alpha;
 	//
 	//return Chi2;
 
@@ -652,10 +800,100 @@ edm4hep::VertexData  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Reco
 
         // Need to fill the associations ...
 
-        return result;
+        double scale0 = 1e-3;   //convert mm to m
+        double scale1 = 1;
+        double scale2 = 0.5*1e3;  // C = rho/2, convert from mm-1 to m-1
+        double scale3 = 1e-3 ;  //convert mm to m
+        double scale4 = 1.;
+
+        for (Int_t i = 0; i < Ntr; i++) {
+
+		edm4hep::TrackState t = tracks[i] ;
+                TVectorD par = get_trackParam( t ) ;
+
+		// initial momentum :
+		//TVector3 ptrack_ini = ParToP( par );
+		//std::cout << "----- Track # " << i << " initial track momentum : " << std::endl;
+		//ptrack_ini.Print();
+
+		par -= final_delta_alpha[i] ;
+	        //std::cout << " Track i = " << i << " --- delta_alpha : " << std::endl;
+		//final_delta_alpha[i].Print();
+
+	        // ( px, py, pz) of the track
+	           TVector3 ptrack = ParToP( par );
+                //std::cout << "         updates track param :" << std::endl;
+		//ptrack.Print();
+
+		// and (px, py) at the vertex insteadof the cda :
+		   double phi0 = par(1);
+		   double phi = final_phases[i];
+		   double px_at_vertex = ptrack.Pt() * TMath::Cos( phi0 + phi );
+		   double py_at_vertex = ptrack.Pt() * TMath::Sin( phi0 + phi );
+		   TVector3 ptrack_at_vertex( px_at_vertex, py_at_vertex, ptrack.Pz() );
+		   //std::cout << "         momentum at the vertex : " << std::endl;
+	 	   //ptrack_at_vertex.Print();
+
+		   updated_track_momentum_at_vertex.push_back( ptrack_at_vertex );
+
+			// back rto FCCSW units...
+			par[0] = par[0] / scale0 ;
+                        par[1] = par[1] / scale1 ;
+                        par[2] = par[2] / scale2 ;
+                        par[3] = par[3] / scale3 ;
+                        par[4] = par[4] / scale4 ;
+		updated_track_parameters.push_back( par );
+
+		reco_chi2.push_back( final_chi2[i] );
+		final_track_phases.push_back( final_phases[i] );
+
+	}
+
+        TheVertex.vertex = result;
+        TheVertex.reco_chi2 = reco_chi2;
+	TheVertex.reco_ind = reco_ind;
+	TheVertex.updated_track_parameters = updated_track_parameters ;
+        TheVertex.updated_track_momentum_at_vertex = updated_track_momentum_at_vertex;
+	TheVertex.final_track_phases = final_track_phases;
+
+
+        //std::cout << " end of VertexFitter " << std::endl;
+          /*
+	for ( Int_t i = 0; i < Ntr; i++) {
+	  std::cout << " Track #" << i << " chi2 = " << reco_chi2[i] << std::endl;
+	  std::cout << "	Initial parameters: " << std::endl;
+		get_trackParam( tracks[i] ).Print();
+	  std::cout << "        Updated parameters : " << std::endl;
+		updated_track_parameters[i].Print();
+	}
+	*/
+
+        delete final_chi2;
+        delete final_phases;
+        //delete final_delta_alpha;
+
+   //std::cout << " end of Vertex, return " << std::endl;
+        //return result;
+
+   return TheVertex;
 
 
 }
+
+
+edm4hep::VertexData get_oneVertexData( FCCAnalysesVertex TheVertex ) {
+  return TheVertex.vertex ;
+}
+
+
+ROOT::VecOps::RVec< edm4hep::VertexData> get_VertexData( ROOT::VecOps::RVec<FCCAnalysesVertex> TheVertex) {
+  ROOT::VecOps::RVec< edm4hep::VertexData>  result;
+  for ( auto & p: TheVertex) {
+    result.push_back( p.vertex );
+  }
+  return result;
+}
+
 
 
 ////////////////////////////////////////////////////
