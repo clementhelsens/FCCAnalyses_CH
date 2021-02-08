@@ -459,7 +459,7 @@ std::vector<int> list_of_stable_particles_from_decay( int i, ROOT::VecOps::RVec<
 
   int db = in.at(i).daughters_begin ;
   int de = in.at(i).daughters_end;
-  ///std::cout << " in list_of_stable_particles_from_decay  i = " <<  i << " db " << db << " de " << de << std::endl;
+  //std::cout << " in list_of_stable_particles_from_decay  i = " <<  i << " db " << db << " de " << de << std::endl;
 
   if ( db != de ) {// particle is unstable
     int d1 = ind[db] ;
@@ -550,7 +550,13 @@ bool debug = false;
      for (auto & pdg_d: m_pdg_daughters ) {
         if (debug) std::cout << " -- looking for PDG = " << pdg_d << std::endl;
 	for (auto & idx_d: products) {
-	    if ( in[idx_d].PDG == pdg_d ) found.push_back( idx_d ); 
+	    if ( in[idx_d].PDG == pdg_d ) {
+	        // careful, there can be several particles with the same PDG !
+	        if (std::find(found.begin(), found.end(), idx_d) == found.end())  {  // idx_d has NOT already been "used"
+		    found.push_back( idx_d ); 
+	 	    if (debug) std::cout << "       found PDG = " << pdg_d << std::endl;
+		}
+	    }
 	}
      }
      if ( found.size() == m_pdg_daughters.size()  && products.size() == m_pdg_daughters.size()) {  // all daughters have been found. That's the decay mode looked for.
@@ -598,6 +604,7 @@ bool debug = false;
         std::cout << " --- in getMC_indices_ExclusiveDecay " << std::endl;
         std::cout << "  PDG mother = " << m_pdg_mother << std::endl;
         std::cout << "  PDG daughters : " << std::endl;
+	std::cout << " m_stableDaughters = "  << m_stableDaughters << std::endl;
         for (int i=0; i < m_pdg_daughters.size(); i++) {
                 std::cout << "     a daughter : " << m_pdg_daughters[i] << std::endl;
         }
@@ -609,6 +616,8 @@ bool debug = false;
      if ( ! m_chargeConjugate ) found_a_mother = ( pdg == m_pdg_mother );
      if ( m_chargeConjugate )   found_a_mother = ( abs(pdg) == abs(m_pdg_mother) ) ;
      if ( ! found_a_mother ) continue;
+
+     if (debug) std::cout << " --- found a mother " << std::endl;
 
      //if ( pdg != m_pdg_mother ) continue;
 
