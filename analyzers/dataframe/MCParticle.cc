@@ -83,10 +83,32 @@ ROOT::VecOps::RVec<float> getMC_vertex_z(ROOT::VecOps::RVec<edm4hep::MCParticleD
   return result;
 }
 
+// E.P : "endpoint" is currenly not filled in the Particle block :-(
 ROOT::VecOps::RVec<edm4hep::Vector3d> getMC_endPoint(ROOT::VecOps::RVec<edm4hep::MCParticleData> in){
   ROOT::VecOps::RVec<edm4hep::Vector3d> result;
   for (auto & p: in) {
     result.push_back(p.endpoint);
+  }
+  return result;
+}
+
+// hence retrieve the decay vertices differently :
+ROOT::VecOps::RVec<edm4hep::Vector3d> getMC_endPoint(ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind )  {
+	// carefull : if a Bs has oscillated into a Bsbar, this returns the production
+	// vertex of the Bsbar !
+
+  ROOT::VecOps::RVec<edm4hep::Vector3d> result;
+  for (auto & p: in) {
+    edm4hep::Vector3d vertex(1e12, 1e12, 1e12);  // default value for stable particles
+    int db = p.daughters_begin ;
+    int de = p.daughters_end;
+    if (db != de) { // particle unstable 
+        int d1 = ind[db] ;   // first daughter
+        if ( d1 >= 0 && d1 < in.size() ) {
+            vertex = in.at(d1).vertex ;
+        }
+    }
+    result.push_back(vertex);
   }
   return result;
 }
@@ -138,6 +160,7 @@ ROOT::VecOps::RVec<float> getMC_phi(ROOT::VecOps::RVec<edm4hep::MCParticleData> 
   for (auto & p: in) {
     TLorentzVector tlv;
     tlv.SetXYZM(p.momentum.x, p.momentum.y, p.momentum.z, p.mass);
+ //std::cout << " --- getMC_phi : " << tlv.Phi() << " charge = " << p.charge << std::endl;
     result.push_back(tlv.Phi());
   }
   return result;
@@ -405,6 +428,23 @@ TVector3 getMC_EventPrimaryVertex::operator() ( ROOT::VecOps::RVec<edm4hep::MCPa
 
 // ----------------------------------------------------------------------------------------------------------------------------------
 
+// returns one MCParticle selected by its index in the particle block
+edm4hep::MCParticleData selMC_byIndex( int idx, ROOT::VecOps::RVec<edm4hep::MCParticleData> in) {
+
+ edm4hep::MCParticleData dummy;
+ if ( idx < in.size() ) { 
+	return in.at(idx) ;
+ }
+ else {
+    	std::cout << " !!!! in selMC_byIndex : index = " << idx << " is larger than the size of the MCParticle block " << in.size() << std::endl;
+ }
+
+ return dummy;
+}
+
+
+// ----------------------------------------------------------------------------------------------------------------------------------
+
 std::vector<int> list_of_stable_particles_from_decay( int i, ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind) {
   std::vector<int> res;
 
@@ -461,127 +501,127 @@ std::vector<int> list_of_particles_from_decay( int i, ROOT::VecOps::RVec<edm4hep
 
 // ----------------------------------------------------------------------------------------------------------------------------------
 
-get_MC_legs_from_mothers::get_MC_legs_from_mothers( int pdg_mother, int pdg_daughter1, int pdg_daughter2, bool stableDaughters) {
-  m_pdg_mother = pdg_mother;
-  m_pdg_daughter1 = pdg_daughter1;
-  m_pdg_daughter2 = pdg_daughter2;
-  m_stableDaughters = stableDaughters;
-} ;
 
 
-std::vector< std::array<int, 2> > get_MC_legs_from_mothers::operator() ( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind) {
+ROOT::VecOps::RVec<int>  getMC_indices_ExclusiveDecay_MotherByIndex ( int imother, std::vector<int> m_pdg_daughters, bool m_stableDaughters, 
+						ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind) {
 
-// Example : pdg_mother = 443 ( mother = JPsi )
-//           pdg_daughter1 = 13, pdg_daughter2 = -13 (muons)
+// Look for a specific decay specified by the mother index in the Particle block,
+// and by the PDG_ids of the daughters
+// Returns a vector with the indicess, in the Particle block, of the mother and of
+// the daughters - in the order defined by std::vector<int> pdg_daughters.
 
-// Returns a vector of array<int, 2>  :
-//    size of the vector = number of JPsis in this event
-//    the array contains the indices of the mu- and the mu+,in this order
 
-   std::vector< std::array<int, 2> >  result;
+ROOT::VecOps::RVec<int>  result;
 
-   std::vector<int> theMothers ;	  // contains the indices of the mothers (e.g. the JPsis) in the MCParticleblock
+//bool debug = true;
+bool debug = false;
+	// check :
+	if (debug) {
+	std::cout << " --- in getMC_indices_ExclusiveDecay_MotherByIndex " << std::endl;
+	std::cout << "  PDG daughters : " << std::endl;
+	for (int i=0; i < m_pdg_daughters.size(); i++) {
+ 		std::cout << "     a daughter : " << m_pdg_daughters[i] << std::endl;
+	}
+	}
 
-   for ( int i=0; i < in.size(); i++){
-     int pdg = in[i].PDG ;
-     if ( pdg == m_pdg_mother ){	
-        theMothers.push_back( i );
-     }
-   }
-   int nMothers = theMothers.size();	   // number of JPsis in this event
-   bool Mothers  = ( nMothers >= 1);
 
-//	std::cout << "    nMothers = " << nMothers << std::endl;
-
-   if ( ! Mothers ) return result;
-
-   ///if ( nMothers > 1 ) std::cout << " -- more than 1 JPsi : " << nMothers << std::endl;
-
-   // debug :
-                  /*
-     for( int i=0; i < in.size(); i++){
-           std::string here="";
-           if ( in[i].PDG == 443 ) here ="   ---   here is a JPsi " ;
-           int db = in.at(i).daughters_begin ;
-           int de = in.at(i).daughters_end;
-           if ( db != de ) {
-                 std::cout << i << " pdg: " << in[i].PDG << " decay products from " << ind[db] << " to " << ind[de-1] << here << std::endl;
-           }
-           else {
-                 std::cout << i << " pdg: " << in[i].PDG << " is stable " << here << std::endl ;
-           }
-     }
-    
- */
-
-   std::vector<int> allMuonsFromJPsis;  // that is used to handle potential duplicates
-					// (e.g. a JPsi that comes itself from a  JPsi with a different status code)
-
-   for( int i=0; i < theMothers.size(); i++) {   // loop over the JPsis
-
-     std::array<int, 2> resu;
-     resu[0] = -1;
-     resu[1] = -1;
-
-     int ijp = theMothers[i] ;
+    if (debug) {
+     std::vector<int> unstable_products = list_of_particles_from_decay( imother, in, ind ) ;
+      for ( auto & k: unstable_products) {
+	   std::cout << " ......... unstable daughter PDG = " << in[k].PDG << std::endl;
+      }
+    }
 
      std::vector<int> products ;
      if ( m_stableDaughters ) {
-	products = list_of_stable_particles_from_decay( ijp, in, ind ) ;
+        products = list_of_stable_particles_from_decay( imother, in, ind ) ;
      }
      else {
-	products = list_of_particles_from_decay( ijp, in, ind ) ;
+        products = list_of_particles_from_decay( imother, in, ind ) ;
      }
 
-	//debug:
-	  std::cout << " result of list_of_stable_particles_from_decay " << std::endl;
-          for (int idec=0; idec< products.size(); idec++) {
-	    std::cout << "  pdg = " << in.at(products[idec]).PDG << std::endl;
-	  }
-     //if ( products.size() != 2 ) continue;
-     if ( products.size() < 2 ) continue;
-
-     
-     //std::cout << " a D0 that decayed into " << in [ products[0]].PDG << " and " << in [ products[1]].PDG << std::endl;
-     int n1 = 0;
-     int n2 = 0;
-
-     for ( int j=0; j < products.size(); ++j) {	   // did the JPsi decay into muons ?
-        int idx = products[j] ;
-        //std::cout << "     decay product : " << in[idx].PDG << std::endl ;
-                if (in[idx].PDG == m_pdg_daughter1) {
-		resu[0] = idx ;
-		n1 ++;
+     if (debug) {
+	   for (auto& idx: products ) {
+	       std::cout << " ........... decay PDG = " << in[idx].PDG << std::endl;
+	   }
+     }
+     std::vector<int> found;   
+     for (auto & pdg_d: m_pdg_daughters ) {
+        if (debug) std::cout << " -- looking for PDG = " << pdg_d << std::endl;
+	for (auto & idx_d: products) {
+	    if ( in[idx_d].PDG == pdg_d ) found.push_back( idx_d ); 
 	}
-        if (in[idx].PDG == m_pdg_daughter2) {
-		resu[1] = idx;
-		n2 ++;
-	}
-        if ( in[idx].PDG == m_pdg_daughter1 || in[idx].PDG == m_pdg_daughter2) {
-	   TLorentzVector leg1 ;
-           leg1.SetXYZM( in[idx].momentum.x, in[idx].momentum.y, in[idx].momentum.z, in[idx].mass );
-           //std::cout << " a MC leg mass = " << in[idx].mass << " pT = " << leg1.Pt() << " theta = " << leg1.Theta() << " eta = " << leg1.Eta() << " phi = " << leg1.Phi() << std::endl;
+     }
+     if ( found.size() == m_pdg_daughters.size()  && products.size() == m_pdg_daughters.size()) {  // all daughters have been found. That's the decay mode looked for.
+	result.push_back( imother );
+	for ( auto & idx_d: found) {   // use "found" and not "products", to get the right ordering
+	   result.push_back( idx_d );
         }
+
+             if (debug) {
+	        std::cout << " --- found the decay mode requested " << std::endl;
+	        for ( auto & id: result ) {
+	            std::cout << " idx = " << id << " PDG = " << in[id].PDG << std::endl;
+	        }
+	     }
      }
 
-     if ( n1 == 0 || n2 == 0) continue;
+return result;
 
-     // to remove potential duplicated J/Psis :
-     if(std::find(allMuonsFromJPsis.begin(), allMuonsFromJPsis.end(), resu[0]) != allMuonsFromJPsis.end()) {
-	continue;  	// skip this JPsi
-     }
-     else {
-
-	allMuonsFromJPsis.push_back( resu[0] );
-        allMuonsFromJPsis.push_back( resu[1] );
-        result.push_back( resu );
-     }
-
-   }  /// end loop over the JPsis
-
-    //std::cout  << "    exit get_MC_muons_from_JPsis " << std::endl;
-         return result;
 }
+
+
+getMC_indices_ExclusiveDecay::getMC_indices_ExclusiveDecay( int pdg_mother, std::vector<int> pdg_daughters, bool stableDaughters, bool chargeConjugate) {
+  m_pdg_mother = pdg_mother;
+  m_pdg_daughters = pdg_daughters;
+  m_stableDaughters = stableDaughters;
+  m_chargeConjugate = chargeConjugate;
+} ;
+
+
+ROOT::VecOps::RVec<int>  getMC_indices_ExclusiveDecay::operator() ( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind) {
+
+// Look for a specific decay specified by the mother PDG_id and
+// the PDG_ids of the daughters
+// Returns a vector with the indicess, in the Particle block, of the mother and of
+// the daughters - in the order defined by std::vector<int> pdg_daughters.
+//
+// In case there are several such decays in the event, keep only the first one.
+
+ROOT::VecOps::RVec<int>  result;
+
+//bool debug = true;
+bool debug = false;
+        // check :
+        if (debug) {
+        std::cout << " --- in getMC_indices_ExclusiveDecay " << std::endl;
+        std::cout << "  PDG mother = " << m_pdg_mother << std::endl;
+        std::cout << "  PDG daughters : " << std::endl;
+        for (int i=0; i < m_pdg_daughters.size(); i++) {
+                std::cout << "     a daughter : " << m_pdg_daughters[i] << std::endl;
+        }
+        }
+
+   for ( int imother =0; imother < in.size(); imother ++){
+     int pdg = in[imother].PDG ;
+     bool found_a_mother = false;
+     if ( ! m_chargeConjugate ) found_a_mother = ( pdg == m_pdg_mother );
+     if ( m_chargeConjugate )   found_a_mother = ( abs(pdg) == abs(m_pdg_mother) ) ;
+     if ( ! found_a_mother ) continue;
+
+     //if ( pdg != m_pdg_mother ) continue;
+
+     ROOT::VecOps::RVec<int> a = getMC_indices_ExclusiveDecay_MotherByIndex( imother, m_pdg_daughters, m_stableDaughters, in, ind );
+     if ( a.size() != 0 ) {
+        result = a;
+        break;    // return the first decay found
+     }
+
+   }
+ return result;
+}
+
 
 
 
@@ -626,21 +666,6 @@ ROOT::VecOps::RVec<edm4hep::Vector3d> getMC_decayVertex::operator() ( ROOT::VecO
      }
      if ( ! keep ) continue;
  
-
-/*
-     std::vector<int>  stable_daughters = list_of_stable_particles_from_decay( i, in, ind );
-     if ( stable_daughters.size() < 2 ) continue;  // something weird..
-     for ( int j=0 ; j< stable_daughters.size();  j++) {
-	int idx = stable_daughters[j];
-        result.push_back(in.at(idx).vertex);
-	break;	//could actually add  a check that all daughters have the same vertex
-     }
-*/
-
-     // int db = in.at(i).daughters_begin ;
-     // int d1 = ind[db] ;   // first daughter
-     // result.push_back(in.at(d1).vertex) ;
-
      result.push_back(  getMC_EndPoint(i, in, ind) );
 
   }
@@ -648,202 +673,6 @@ ROOT::VecOps::RVec<edm4hep::Vector3d> getMC_decayVertex::operator() ( ROOT::VecO
 
 }
 
-
-// --------------------------------------------------------------------------------------------------
-
-// specific to Bs -> Ds K :
-
-ROOT::VecOps::RVec< std::vector<int> > getMC_indices_Bs2DsK( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind)  {
-  std::vector< std::vector<int> > results;
-
-  for (int i=0; i < in.size(); i++) {
-    if ( in.at(i).PDG == 531) {	// a Bs
-	//std::cout << " --- here a Bs " << std::endl;
-	// by construction, all Bs's should decay to Ds + K
-	//	it could oscillate though, in which case there is only one daughter with PDG = -531
-        std::vector<int> the_daughters = list_of_particles_from_decay( i, in, ind ) ;
-	std::vector<int> daughters_ordered;    // reorder if needed: put the Ds first, then the bachelor K
-	daughters_ordered.push_back( -1);
-        daughters_ordered.push_back( -1);
-        bool hasDs = false;
-	bool hasK = false;
-        for (int id = 0; id < the_daughters.size(); id++) {
-	   int idx = the_daughters[id];
-	   if ( in.at(idx).PDG == 431 ) {
-		hasDs = true;
-		daughters_ordered[0] = idx;
-	   }
-	   if ( in.at(idx).PDG == -321) {   // the bachelor K
-		hasK = true;
-		daughters_ordered[1] = idx;
-	   }
-	}
-        if ( hasDs) {
-		//results.push_back( the_daughters  );
-		if ( the_daughters.size() != 2 ) std::cout << "   weird in getMC_indices_Bs2DsK: #daughters from Bs decay is " << the_daughters.size() << std::endl;
-		if (! hasK) std::cout << "   weird in getMC_indices_Bs2DsK: no K found " << std::endl;
-		results.push_back( daughters_ordered );  
-	}
-    } // end isBs
-   
-  }
- return ROOT::VecOps::RVec( results) ;
-}
-
-// --------------------------------------------------------------------------------------------------
-
-/// number of decays Bs -> Ds K in this event  (could be 0 because not every event has produced a Bs,
-///			and could be 0 or 2 because of Bs oscillations)
-int MC_nBs2DsK( ROOT::VecOps::RVec< std::vector<int> >   ndecays ) {
-   // ROOT::VecOps::RVec< std::vector<int> > ndecays = getMC_indices_Bs2DsK( in, ind );
-   return ndecays.size();
-}
-
-// --------------------------------------------------------------------------------------------------
-
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_Ds( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec< std::vector<int> >   ndecays)  {
-   std::vector< edm4hep::MCParticleData> results;
-   for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-     std::vector<int> indices = ndecays[idecay];
-     ///for (int id = 0; id < indices.size(); id++) {
-      //int idx = indices[id];
-      ///if ( in.at(idx).PDG  == 431 ) {   // the Ds
-         int idx = indices[0] ;   // the Ds
-         results.push_back( in.at(idx) );
-      ///}
-     ///}
-   }
-   return ROOT::VecOps::RVec<edm4hep::MCParticleData>( results );
-}
-
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_BachelorK( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec< std::vector<int> >   ndecays)  {
-   std::vector< edm4hep::MCParticleData> results;
-   for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-     std::vector<int> indices = ndecays[idecay];
-     //for (int id = 0; id < indices.size(); id++) {
-      //int idx = indices[id];
-      //if ( in.at(idx).PDG  == -321 ) {   // the bachelor K
-         int idx = indices[1];     // the bachelor K
-         results.push_back( in.at(idx) );
-      //}
-     //}
-   }
-   return ROOT::VecOps::RVec<edm4hep::MCParticleData>( results );
-}
-
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_Kplus( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> >   ndecays)  {
-   std::vector< edm4hep::MCParticleData> results;
-   edm4hep::MCParticleData dummy;
-   for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-     std::vector<int> indices = ndecays[idecay];
-     bool found = false;
-     int idx = indices[0] ;   // the Ds 
-     std::vector<int> Ds_daughters = list_of_stable_particles_from_decay( idx, in, ind ) ; 
-     for (int ida=0; ida < Ds_daughters.size(); ida++) {
-        int k = Ds_daughters[ida];
-	if ( in.at(k).PDG == 321) {
-		results.push_back( in.at(k) );
-		found = true;
-		break;
-	}
-     }
-     if (! found) results.push_back( dummy );
-   }
-  return results;
-}
-
-
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_Kminus( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> >   ndecays)  {
-   std::vector< edm4hep::MCParticleData> results;
-   edm4hep::MCParticleData dummy;
-   for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-     std::vector<int> indices = ndecays[idecay];
-     bool found = false;
-     int idx = indices[0] ;   // the Ds 
-     std::vector<int> Ds_daughters = list_of_stable_particles_from_decay( idx, in, ind ) ; 
-     for (int ida=0; ida < Ds_daughters.size(); ida++) {
-        int k = Ds_daughters[ida];
-        if ( in.at(k).PDG == -321) {
-                results.push_back( in.at(k) );
-                found = true;
-                break;
-        }
-     }
-     if (! found) results.push_back( dummy );
-   }
-  return results;
-}
-
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_Piplus( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> >   ndecays)  {
-   std::vector< edm4hep::MCParticleData> results;
-   edm4hep::MCParticleData dummy;
-   for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-     std::vector<int> indices = ndecays[idecay];
-     bool found = false;
-     int idx = indices[0] ;   // the Ds 
-     std::vector<int> Ds_daughters = list_of_stable_particles_from_decay( idx, in, ind ) ; 
-     for (int ida=0; ida < Ds_daughters.size(); ida++) {
-        int k = Ds_daughters[ida];
-        if ( in.at(k).PDG == 211) {
-                results.push_back( in.at(k) );
-                found = true;
-                break;
-        }
-     }
-     if (! found) results.push_back( dummy );
-   }
-  return results;
-}
-
-
-
-
-ROOT::VecOps::RVec< edm4hep::Vector3d > MC_Ds_DecayVertex( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> >   ndecays)  {
-
-  std::vector< edm4hep::Vector3d > results;
-
-  //ROOT::VecOps::RVec< std::vector<int> > ndecays = getMC_indices_Bs2DsK( in, ind );
-
-  for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-    std::vector<int> indices = ndecays[idecay];
-    bool hasDs = false;
-    for (int id = 0; id < indices.size(); id++) {
-      int idx = indices[id];
-      if ( in.at(idx).PDG  == 431 ) {   // the Ds
-        hasDs = true;
-	edm4hep::Vector3d vertex  = getMC_EndPoint( idx, in, ind) ;
-        results.push_back( vertex );
-      }
-    }
-    if ( ! hasDs) std::cout << " weird.. no Ds  found in MC_Ds_DecayVertex " << std::endl;
-  }
-  
-  return ROOT::VecOps::RVec( results );
-}
-
-
-ROOT::VecOps::RVec< edm4hep::Vector3d > MC_Bs_DecayVertex( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> >   ndecays)  {
-
-  std::vector< edm4hep::Vector3d > results;
-
-  //ROOT::VecOps::RVec< std::vector<int> > ndecays = getMC_indices_Bs2DsK( in, ind );
-
-  for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-    std::vector<int> indices = ndecays[idecay];
-    bool hasDs = false;
-    for (int id = 0; id < indices.size(); id++) {
-      int idx = indices[id];
-      if ( in.at(idx).PDG  == 431 ) {   // the Ds
-        hasDs = true;
-        edm4hep::Vector3d vertex  = in.at(idx).vertex;   // take the vertex of the Ds
-        results.push_back( vertex );
-      }
-    }
-    if ( ! hasDs) std::cout << " weird.. no Ds  found in MC_Bs_DecayVertex " << std::endl;
-  }
-
-  return ROOT::VecOps::RVec( results );
-}
 
 
 

@@ -92,11 +92,19 @@ TVectorD get_trackParam( edm4hep::TrackState & atrack) {
     double tanlambda = atrack.tanLambda ;
     TVectorD res(5);
 
+ //std::cout << " in get_trackParam:  omega = " << omega << std::endl;
+ // Feb 4, 2021: I believe that the sign of omega is wrong in
+ // https://github.com/key4hep/k4SimDelphes/blob/main/converter/src/DelphesEDM4HepConverter.cc,
+ // convertTrack
+
+
     double scale0 = 1e-3;   //convert mm to m
     double scale1 = 1;
     double scale2 = 0.5*1e3;  // C = rho/2, convert from mm-1 to m-1
     double scale3 = 1e-3 ;  //convert mm to m
     double scale4 = 1.;
+
+  scale2 = -scale2 ;   // sign of omega
 
     // Same units and definitions as Franco :
     //scale0= 1.;
@@ -530,13 +538,15 @@ FCCAnalysesVertex  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Recons
         ROOT::VecOps::RVec<edm4hep::TrackState> tracks = getRP2TRK( recoparticles, thetracks );
 	// and run the vertex fitter
 
-	FCCAnalysesVertex thevertex = VertexFitter_Tk( Primary, tracks, thetracks) ;
+	//FCCAnalysesVertex thevertex = VertexFitter_Tk( Primary, tracks, thetracks) ;
+	FCCAnalysesVertex thevertex = VertexFitter_Tk( Primary, tracks); 
 
         //fill the indices of the tracks
         ROOT::VecOps::RVec<int> reco_ind;
         int Ntr = tracks.size();
         for (auto & p: recoparticles) {
-           if ( p.tracks_begin<thetracks.size()) {
+           //std::cout << " in VertexFitter:  a recoparticle with charge = " << p.charge << std::endl;
+           if ( p.tracks_begin >=0 && p.tracks_begin<thetracks.size()) {
                 reco_ind.push_back( p.tracks_begin );
            }
         }
@@ -548,8 +558,8 @@ FCCAnalysesVertex  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Recons
 }
 
 
-FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::TrackState> tracks, 
-					ROOT::VecOps::RVec<edm4hep::TrackState> thetracks )
+FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::TrackState> tracks) 
+					// ROOT::VecOps::RVec<edm4hep::TrackState> thetracks )
 {
 
         // final results :
@@ -580,6 +590,9 @@ FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::Tra
 	//}
         //if ( reco_ind.size() != Ntr ) std::cout << " ... problem in Vertex, size of reco_ind != Ntr " << std::endl;
 
+    bool debug = false;
+    //if ( Primary  == 2 ) debug = true;
+    if (debug) std::cout << " enter in VertexFitter_Tk for the Bs decay vertex " << std::endl;
 
 
         Double_t *final_chi2 = new Double_t[Ntr];
@@ -602,10 +615,14 @@ FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::Tra
         x0[1] = ini_vtx[1] *1e-3 ;
         x0[2] = ini_vtx[2] *1e-3 ;
 
+        if (debug) std::cout << " initial vertex (mm): " << 1e3*x0[0] << " " << 1e3*x0[1] << " " << 1e3*x0[2] << std::endl;
+
         TVectorD x(3);
         TMatrixDSym covX(3);
 
+        Double_t Chi2 = 0;
 	//cout << "Preliminary vertex" << endl; x0.Print();
+
 	//
 	// Stored quantities
 	Double_t *fi = new Double_t[Ntr];		// Phases 
@@ -624,13 +641,14 @@ FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::Tra
 	Int_t TryMax = 100;
 	Double_t eps = 1.0e-9; // vertex stability
 	Double_t epsi = 1000.;
-	Double_t Chi2;
+	//Double_t Chi2;
 	//
 	while (epsi > eps && Ntry < TryMax)		// Iterate until found vertex is stable
 	{
 		Double_t x0mod = TMath::Sqrt(x0(0)*x0(0) + x0(1)*x0(1));
 		if (x0mod > 2.0) x0.Zero();	// Reset to 0 if abnormal value
 		x = x0;
+              if (debug) std::cout <<  "   ... Ntry " << Ntry << " x = " << 1e3*x(0) << " " << 1e3*x(1) << " " << 1e3*x(2) << std::endl;
 		TVectorD cterm(3); TMatrixDSym H(3); TMatrixDSym DW1D(3);
 		covX.Zero();		// Reset vertex covariance
 		cterm.Zero();	// Reset constant term
@@ -708,6 +726,8 @@ FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::Tra
 		// update vertex position
 		TMatrixDSym H1 = RegInv3(H);
 		x = H1*cterm;
+
+	        if(debug) std::cout << " ...... x = " << 1e3*x(0) << " " << 1e3*x(1) << " " << 1e3*x(2) << std::endl;
 		// Update vertex covariance
 		covX = DW1D.Similarity(H1);
 		// Update phases and chi^2
@@ -749,33 +769,57 @@ FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::Tra
 		Ntry++;
 		//if (epsi >10)
 		//cout << "Vtx:  Iteration #"<<Ntry<<", eps = "<<epsi<<", x = " << x(0) << ", " << x(1) << ", " << x(2) << endl;
-	}
+
+
+
+	//
+        // Cleanup
+        //
+
+             for (Int_t i = 0; i < Ntr; i++)
+             {
+                     x0i[i]->Clear();
+                     Winvi[i]->Clear();
+                     Wi[i]->Clear();
+                     ai[i]->Clear();
+                     Di[i]->Clear();
+                     Ai[i]->Clear();
+                     Covi[i]->Clear();
+
+                     delete x0i[i];
+                     delete Winvi[i];
+                     delete Wi[i] ;
+                     delete ai[i] ;
+                     delete Di[i];
+                     delete Ai[i];
+                     delete Covi[i];
+             }
+
+
+	}  // end of while loop
+
 	//
 	// Cleanup
 	//
-	for (Int_t i = 0; i < Ntr; i++)
-	{
-		x0i[i]->Clear();
-		Winvi[i]->Clear();
-		Wi[i]->Clear();
-		ai[i]->Clear();
-		Di[i]->Clear();
-		Ai[i]->Clear();
-		Covi[i]->Clear();
-	}
-		delete[] fi;		// Phases 
-		delete[] x0i;		// Track expansion point
-		delete[] ai;		// dx/dphi
-		delete[] a2i;		// a'Wa
-		delete [] Di;		// W-WBW
-		delete [] Wi;	// (ACA')^-1
-		delete [] Winvi;	// ACA'
-		delete[] Ai ;		// A
-		delete[] Covi;		// Cov
+		// delete[] x0i;		// Track expansion point
+		// delete[] ai;		// dx/dphi
+		// delete[] a2i;		// a'Wa
+		// delete [] Di;		// W-WBW
+		// delete [] Wi;	// (ACA')^-1
+		// delete [] Winvi;	// ACA'
+		// delete[] Ai ;		// A
+		// delete[] Covi;		// Cov
 
-	//delete final_chi2;
-	//delete final_phases;
-	//delete final_delta_alpha;
+                delete fi;            // Phases 
+                delete x0i;           // Track expansion point
+                delete ai;            // dx/dphi
+                delete a2i;           // a'Wa
+                delete  Di;           // W-WBW
+                delete  Wi;   // (ACA')^-1
+                delete  Winvi;        // ACA'
+                delete Ai ;           // A
+                delete Covi;          // Cov
+
 	//
 	//return Chi2;
 
@@ -816,7 +860,9 @@ FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::Tra
 		//std::cout << "----- Track # " << i << " initial track momentum : " << std::endl;
 		//ptrack_ini.Print();
 
+                // uncomment below to get the post-fit track parameters :
 		par -= final_delta_alpha[i] ;
+
 	        //std::cout << " Track i = " << i << " --- delta_alpha : " << std::endl;
 		//final_delta_alpha[i].Print();
 
@@ -827,11 +873,13 @@ FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::Tra
 
 		// and (px, py) at the vertex insteadof the cda :
 		   double phi0 = par(1);
-		   double phi = final_phases[i];
+		   double phi = final_phases[i]  ;
+		//phi = -phi ;  
 		   double px_at_vertex = ptrack.Pt() * TMath::Cos( phi0 + phi );
 		   double py_at_vertex = ptrack.Pt() * TMath::Sin( phi0 + phi );
 		   TVector3 ptrack_at_vertex( px_at_vertex, py_at_vertex, ptrack.Pz() );
 		   //std::cout << "         momentum at the vertex : " << std::endl;
+		     //std::cout << " phi0 at dca = " << phi0 << " phi at vertex = " << phi0+phi << " C = " << par(2) << " phase " << phi << std::endl;
 	 	   //ptrack_at_vertex.Print();
 
 		   updated_track_momentum_at_vertex.push_back( ptrack_at_vertex );
@@ -870,7 +918,6 @@ FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::Tra
 
         delete final_chi2;
         delete final_phases;
-        //delete final_delta_alpha;
 
    //std::cout << " end of Vertex, return " << std::endl;
         //return result;
@@ -881,17 +928,8 @@ FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::Tra
 }
 
 
-edm4hep::VertexData get_oneVertexData( FCCAnalysesVertex TheVertex ) {
+edm4hep::VertexData get_VertexData( FCCAnalysesVertex TheVertex ) {
   return TheVertex.vertex ;
-}
-
-
-ROOT::VecOps::RVec< edm4hep::VertexData> get_VertexData( ROOT::VecOps::RVec<FCCAnalysesVertex> TheVertex) {
-  ROOT::VecOps::RVec< edm4hep::VertexData>  result;
-  for ( auto & p: TheVertex) {
-    result.push_back( p.vertex );
-  }
-  return result;
 }
 
 

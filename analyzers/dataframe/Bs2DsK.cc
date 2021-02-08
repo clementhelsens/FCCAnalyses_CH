@@ -1,303 +1,172 @@
 #include "Bs2DsK.h"
 
-// -- select the reco'ed particles associated with the bachelor K in Bs -> Ds K 
+#include <random>
+#include <chrono>
 
+// ---------------------------------------------------------------------------------------------------------------
 
-//ROOT::VecOps::RVec< edm4hep::ReconstructedParticleData>  selChargedRP_KfromBs ( ROOT::VecOps::RVec<int> RP2MC_indices, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco, ROOT::VecOps::RVec<edm4hep::MCParticleData> mc, ROOT::VecOps::RVec< std::vector<int> > ndecays  ){
+ROOT::VecOps::RVec<int>  getMC_indices_Ds2KKPi ( ROOT::VecOps::RVec<int> Bs2DsK_indices,
+                                                  ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind) {
 
-ROOT::VecOps::RVec< edm4hep::ReconstructedParticleData>  selChargedRP_KfromBs ( ROOT::VecOps::RVec<int> RP2MC_indices, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco, ROOT::VecOps::RVec< std::vector<int> > ndecays  ){
+ ROOT::VecOps::RVec<int>  result;
 
- ROOT::VecOps::RVec< edm4hep::ReconstructedParticleData>   results;
+ if ( Bs2DsK_indices.size() == 0) return result;
+ if ( Bs2DsK_indices.size() != 3) {
+        std::cout << "  !!!!  getMC_indices_Bs2DsK: size of Bs2DsK_indices != 3: " << Bs2DsK_indices.size() << std::endl;
+        return result;
+ }
 
- edm4hep::ReconstructedParticleData dummy;
- dummy.energy = -99;
+ //std::cout << " ... in getMC_indices_Ds2KKPi, found a Bs to Ds K " << std::endl;
 
- //ROOT::VecOps::RVec< std::vector<int> > ndecays = getMC_indices_Bs2DsK( mc, mcind );
+ int idx_Ds = Bs2DsK_indices[1];  // by construction, the Ds is the 
+ // get the indices of the Ds+ daughters :
+ std::vector<int> pdg_daughters = { 321, -321, 211 } ;  //  K+, K-, Pi+
+ bool stable = true;    // look among the list of *stable* daughters of the Ds+
+ ROOT::VecOps::RVec<int> Ds_daughters = getMC_indices_ExclusiveDecay_MotherByIndex( idx_Ds, pdg_daughters, stable, in, ind);
 
-  for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-    std::vector<int> indices = ndecays[idecay];
+ // Ds_daughters contains the indices of : the mother Ds, the K+, K-, Pi+
+ if ( Ds_daughters.size() != 4 ) return result;   // this is not the decay searched for. Return an empty vector
 
-    bool Found_K = false;
-    //for (int id = 0; id < indices.size(); id++) {
-      //int idx = indices[id];
-      int idx = indices[1];  // the Kaon
-      //if ( mc.at(idx).PDG  == -321 ) {   // the K-
+ //std::cout << " ... Found the Ds daughters " << std::endl;
 
-       	for ( int j=0; j < reco.size(); j++) {
-		if ( RP2MC_indices[j] == idx ) {
-		    Found_K = true;
-		    results.push_back( reco.at( j) ) ;
-		    break;
-		}
- 	}
-
-        if ( ! Found_K)  // did not find a reco Particle matched tp the Kaon (e.g. K was outside the acceptance)
-	   results.push_back( dummy );
-
-      //}
-    //}
-  }
-
- return results;
+ return Ds_daughters ;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
 
+ROOT::VecOps::RVec<int>  getMC_indices_Bs2KKPiK ( ROOT::VecOps::RVec<int> Bs2DsK_indices, 
+						  ROOT::VecOps::RVec<int> Ds2KKPi_indices ) {
 
-// -- select the reco'ed particles associated with Ds (from Bs) -> Phi(KK) Pi+
+// returns a vector with the indices of the Bs, (K+ K- Pi+ ) ,  K- , in this order,
+// where the first 3 particles are the daughters from the Ds+
+// the input list, Bs2DsK_indices, contains the indices of: the Bs, the Ds+, the K- (in this order)
 
-ROOT::VecOps::RVec< ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> > selChargedRP_DsfromBs( ROOT::VecOps::RVec<int> recind, ROOT::VecOps::RVec<int> mcind, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco,  ROOT::VecOps::RVec<edm4hep::MCParticleData> mc,  ROOT::VecOps::RVec<int>  ind, ROOT::VecOps::RVec< std::vector<int> > ndecays  ){
+ ROOT::VecOps::RVec<int>  result;
 
- std::vector<  ROOT::VecOps::RVec< edm4hep::ReconstructedParticleData> >  results;
+ if ( Bs2DsK_indices.size() != 3) return result;  
+ if ( Ds2KKPi_indices.size() != 4) return result;
 
- //ROOT::VecOps::RVec< std::vector<int> > ndecays = getMC_indices_Bs2DsK( mc, mcind );
+ // Now fill in the indices:
+ result.push_back(  Bs2DsK_indices[0] );   // the mother Bs
+ for (auto & p : Ds2KKPi_indices ) {
+   result.push_back( p ) ;   // the Ds daughters
+ }
+ result.push_back(  Bs2DsK_indices[2] );  // the bachelor K-
+ //std::cout << " ... in getMC_indices_Bs2DsK, found all daughters " << std::endl;
 
-  for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-    std::vector<int> indices = ndecays[idecay];
+ return result;
 
-    //for (int id = 0; id < indices.size(); id++) {
-      //int idx = indices[id];
-      //if ( mc.at(idx).PDG  == 431 ) {   // the Ds
-
-      int idx = indices[0];   // the Ds
-
-       //std::cout << " ... Ds found, enter in selChargedRP_MCmatch_daughtersOf  " << std::endl;
-        ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> the_Ds_tracks = selChargedRP_MCmatch_daughtersOf( idx, recind, mcind, reco, mc, ind);
-       //std::cout << "    ... number of matched particles = " << the_Ds_tracks.size() << std::endl;
-        results.push_back(  the_Ds_tracks );
-
-      //}
-    //}
-  }
-
- return ROOT::VecOps::RVec( results );
 }
 
-ROOT::VecOps::RVec< int > n_DsTracks( ROOT::VecOps::RVec< ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> > all_Ds_tracks ) {
-  std::vector<int> res;
-  for (int i=0; i < all_Ds_tracks.size(); i++) {
-    int ntracks = all_Ds_tracks[i].size();
-    res.push_back( ntracks );
-  }
- return ROOT::VecOps::RVec( res );
-}
+// ---------------------------------------------------------------------------------------------------------------
 
-// ----------------------------------------------------------------------------------------------
+ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> ReconstructedDs( ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> RecoKplus,
+				ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> RecoKminus,
+				ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> RecoPiplus) {
 
-// the RecoParticles associated with the Ds daughters, Ds+ -> K+ K- Pi+
+ ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData>  result;
 
-ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> RecoKplus( ROOT::VecOps::RVec< ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> > thelegs) {
-  ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> results;
-  	edm4hep::ReconstructedParticleData dummy;
-  	bool found = false;
-  	for (int idecay=0; idecay < thelegs.size(); idecay++) {
-    	ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> legs = thelegs[idecay];
-    	for (int ileg = 0; ileg < legs.size(); ileg ++) {
-		if ( legs[ileg].charge > 0 && legs[ileg].mass > 0.45 && legs[ileg].mass < 0.55) {  // the K+
-			found = true;
-			results.push_back( legs[ileg] );
-			break;
-		}
-    	}
-    	if (! found) results.push_back( dummy );
-  	}
-   return results;
-}
+ if ( RecoKplus.size() != 1 || RecoKminus.size()!= 1 || RecoPiplus.size() != 1 ) return result;
+ // require that esch particle be reconstructed,i.e. remove the dummies
+ if ( RecoKplus[0].energy < 0 || RecoKminus[0].energy < 0 || RecoPiplus[0].energy <0) return result;
 
-ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> RecoKminus( ROOT::VecOps::RVec< ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> > thelegs) {
-  ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> results;
-  	edm4hep::ReconstructedParticleData dummy;
-  	bool found = false;
-  	for (int idecay=0; idecay < thelegs.size(); idecay++) {
-    	ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> legs = thelegs[idecay];
-    	for (int ileg = 0; ileg < legs.size(); ileg ++) {
-        	if ( legs[ileg].charge < 0 && legs[ileg].mass > 0.45 && legs[ileg].mass < 0.55) {  // the K-
-                	found = true;
-                	results.push_back( legs[ileg] );
-                	break;
-        	}
-    	}
-    	if (! found) results.push_back( dummy );
-  	}
-  return results;
-}
+ std::vector< edm4hep::ReconstructedParticleData> legs = { RecoKplus[0], RecoKminus[0], RecoPiplus[0] };
+ float mK = 4.9367700e-01;
+ float mPi = 1.3957018e-01;
+ std::vector< float> masses={ mK, mK, mPi };
+ 
+ edm4hep::ReconstructedParticleData theDs;
+ TLorentzVector theDs4v;
+ float Ds_charge = 0;
 
-ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> RecoPiplus( ROOT::VecOps::RVec< ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> > thelegs) {
-  ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> results;
-        edm4hep::ReconstructedParticleData dummy;
-        bool found = false;
-        for (int idecay=0; idecay < thelegs.size(); idecay++) {
-        ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> legs = thelegs[idecay];
-        for (int ileg = 0; ileg < legs.size(); ileg ++) {
-                if ( legs[ileg].charge > 0 && legs[ileg].mass > 0.1 && legs[ileg].mass < 0.2) {  // the Piplus
-                        found = true;
-                        results.push_back( legs[ileg] );
-                        break;
-                }
-        }
-        if (! found) results.push_back( dummy );
-        }
-  return results;
-}
-
-
-ROOT::VecOps::RVec< FCCAnalysesVertex >  DsVertex( ROOT::VecOps::RVec< ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> > all_Ds_tracks,
-                                                   ROOT::VecOps::RVec<edm4hep::TrackState> tracks  ) {
-   std::vector< FCCAnalysesVertex > vertices;
-   for (int i=0; i < all_Ds_tracks.size(); i++) {
-      ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> theTracks = all_Ds_tracks[i];
-      FCCAnalysesVertex vertex = VertexFitter(3, theTracks, tracks) ;
-      vertices.push_back( vertex) ;
-   }
-  return ROOT::VecOps::RVec< FCCAnalysesVertex >( vertices );
-}
-
-
-// ----------------------------------------------------------------------------------------------------------------------------
-
-ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData>  ReconstructedDs( ROOT::VecOps::RVec<int> recind, ROOT::VecOps::RVec<int> mcind, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco,  ROOT::VecOps::RVec<edm4hep::MCParticleData> mc, ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> > ndecays  ) {
-
-	// reconstruct the Ds from the pre-fit tracks
-	// no updated parameters from the vertex fit, and (px, py) correspond to the dca
-	// and not to the vertex
-
- std::vector< edm4hep::ReconstructedParticleData>   result;
-
-   for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-    std::vector<int> indices = ndecays[idecay];
-    edm4hep::ReconstructedParticleData theDs;
-
-    for (int id = 0; id < indices.size(); id++) {
-      int idx = indices[id];
-      if ( mc.at(idx).PDG  == 431 ) {   // the Ds
-
-      TLorentzVector theDs4v;
-      float Ds_charge = 0;
-
-      std::vector<int>  stable_daughters = list_of_stable_particles_from_decay( idx, mc, ind );
-
-      for (int i=0; i<recind.size();i++) {
-          int reco_idx = recind.at(i);
-          // keep only charged particles
-          if ( reco.at( reco_idx ).charge == 0 ) continue;
-          int mc_idx = mcind.at(i);
-
-          if ( std::find( stable_daughters.begin(), stable_daughters.end(), mc_idx ) != stable_daughters.end() ) {
-	        TLorentzVector leg;
-		leg.SetXYZM( reco.at( reco_idx ).momentum.x, reco.at( reco_idx ).momentum.y, reco.at( reco_idx ).momentum.z, mc.at(mc_idx).mass );
-		theDs4v +=  leg;
-		Ds_charge += mc.at(mc_idx).charge;
-          }
-      }
-
-      theDs.charge =  Ds_charge;
-      theDs.momentum.x = theDs4v.Px();
-      theDs.momentum.y = theDs4v.Py();
-      theDs.momentum.z = theDs4v.Pz();
-      theDs.mass = theDs4v.M();
-
-      }
-    }
-    result.push_back( theDs );
-    }
- return ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData>( result );
-}
-
-// ----------------------------------------------------------------------------------------------------------------------------
-
-
-ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData>  ReconstructedDs_atVertex( ROOT::VecOps::RVec<FCCAnalysesVertex> DsVertices,
-		ROOT::VecOps::RVec<int> recind, ROOT::VecOps::RVec<int> mcind, 	
-		ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco,  ROOT::VecOps::RVec<edm4hep::MCParticleData> mc) {
-
-
-        // reconstruct the Ds from the post-fit tracks
-
- std::vector< edm4hep::ReconstructedParticleData>   result;
-
-   for (int idecay = 0; idecay < DsVertices.size(); idecay++) {		// loop over the Ds decays (in case > 1 Ds->KKPi in the event)
-    FCCAnalysesVertex DsVertex = DsVertices[idecay];
-
-    edm4hep::ReconstructedParticleData theDs;
-
-    ROOT::VecOps::RVec<int> the_tracks_indices = DsVertex.reco_ind ;	// indices of the TrackStates that made this vertex
-    ROOT::VecOps::RVec< TVector3 >  updated_track_momentum_at_vertex = DsVertex.updated_track_momentum_at_vertex ;
-
-    TLorentzVector theDs4v;
-    float Ds_charge = 0;
-    //std::cout << " here a Ds decay " << std::endl;
-    //std::cout << " Number of tracks at the vertex " << the_tracks_indices.size() << std::endl;
-    //std::cout << " updated_track_momentum_at_vertex.size() = " << updated_track_momentum_at_vertex.size() << std::endl;
-
-    for ( int itra = 0; itra < the_tracks_indices.size(); itra ++) {
-	
-	int index = the_tracks_indices[itra];
-	//std::cout << " track index " << index << std::endl;
-	TVector3 track_momentum = updated_track_momentum_at_vertex[itra];
-        //std::cout << " track momentum : " ;  track_momentum.Print();
-
-	int mc_index = getTrack2MC_index( index , recind, mcind, reco ) ;   // ssociation of the track to a MC Particle
-        //std::cout << " ... a track matched to PDG = " << mc.at( mc_index ).PDG << std::endl;
+ for (int ileg = 0; ileg < 3; ileg++) {
+   
 	TLorentzVector leg;
-	leg.SetXYZM( track_momentum.Px(), track_momentum.Py(), track_momentum.Pz(), mc.at( mc_index ).mass );
-	theDs4v +=  leg;
-	Ds_charge += mc.at(mc_index).charge;
-        
-    } // end loop over the tracks
+        leg.SetXYZM( legs[ileg].momentum.x, legs[ileg].momentum.y, legs[ileg].momentum.z, masses[ileg] );
+        theDs4v +=  leg;
+        Ds_charge += legs[ileg].charge;
 
-    theDs.charge =  Ds_charge;
-    theDs.momentum.x = theDs4v.Px();
-    theDs.momentum.y = theDs4v.Py();
-    theDs.momentum.z = theDs4v.Pz();
-    theDs.mass = theDs4v.M();
-    theDs.referencePoint = DsVertex.vertex.position ;   // the Ds decay vertex
+ }
+ theDs.charge =  Ds_charge;
+ theDs.momentum.x = theDs4v.Px();
+ theDs.momentum.y = theDs4v.Py();
+ theDs.momentum.z = theDs4v.Pz();
+ theDs.mass = theDs4v.M();
+ theDs.referencePoint = legs[0].referencePoint;
 
-    result.push_back( theDs );
-
-    }   // end loop over the Ds's
-
- return ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData>( result );
+ result.push_back( theDs );
+ return result;
 }
 
 
 // ----------------------------------------------------------------------------------------------------------------------------
 
 
-ROOT::VecOps::RVec<edm4hep::TrackState>  ReconstructedDs_atVertex_TrackState( ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> theDss) {
+ROOT::VecOps::RVec<edm4hep::TrackState>  ReconstructedDs_atVertex_TrackState( ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> theDss,
+	ROOT::VecOps::RVec<edm4hep::MCParticleData> theMCDs, edm4hep::Vector3d  theMDsMCDecayVertex ) {
 
 // return a TrackState corresponding to the reco'ed Ds
 
   ROOT::VecOps::RVec<edm4hep::TrackState > result;
+  if ( theDss.size() != 1 ) return result;
+
+  edm4hep::MCParticleData MCDs = theMCDs[0];
 
   float norm = 1e-3;   // to convert from mm to meters 
-  for (int iDs = 0; iDs < theDss.size(); iDs++) {
 
-	edm4hep::ReconstructedParticleData theDs = theDss[iDs];
-      	TVector3 vertex( theDs.referencePoint.x * norm, theDs.referencePoint.y * norm, theDs.referencePoint.z * norm ); 
-	TVector3 momentum ( theDs.momentum.x, theDs.momentum.y, theDs.momentum.z)  ;
-     	// get the corresponding track parameters using Franco's code 
-     	TVectorD track_param = XPtoPar( vertex, momentum, theDs.charge );
+        edm4hep::ReconstructedParticleData theDs = theDss[0];
 
-	edm4hep::TrackState track;
-	track.D0 	= track_param[0] * 1e3 ; // from meters to mm
-	track.phi	= track_param[1];
-	track.omega	= track_param[2] / ( 0.5*1e3 ) ; // C from Franco = rho/2, and convert from m-1 to mm-1
-	track.Z0	= track_param[3] * 1e3  ;   // from meters to mm
-	track.tanLambda = track_param[4];
+        // use the  reco'ed Ds :
+        TVector3 vertex( theDs.referencePoint.x * norm, theDs.referencePoint.y * norm, theDs.referencePoint.z * norm );
+        TVector3 momentum ( theDs.momentum.x, theDs.momentum.y, theDs.momentum.z)  ;
 
-	track.referencePoint.x = vertex[0];
+        // use the MC Ds and its vertex
+        TVector3 MCvertex( theMDsMCDecayVertex.x * norm, theMDsMCDecayVertex.y * norm, theMDsMCDecayVertex.z * norm );
+        TVector3 MCmomentum ( MCDs.momentum.x, MCDs.momentum.y, MCDs.momentum.z );
+
+ //std::cout << " Reco'ed Ds momentum " <<  theDs.momentum.x << " " << theDs.momentum.y << " " << theDs.momentum.z << std::endl;
+ //std::cout << "      MC Ds momentum " << MCDs.momentum.x << " " << MCDs.momentum.y << " " << MCDs.momentum.z << std::endl;
+ //std::cout << " Reco'ed Ds vertex   " << theDs.referencePoint.x << " " << theDs.referencePoint.y << " " << theDs.referencePoint.z << std::endl;
+ //std::cout << "      MC Ds vertex   " << theMDsMCDecayVertex.x << " " << theMDsMCDecayVertex.y  << " " << theMDsMCDecayVertex.z  << std::endl;
+ //std::cout << " Reco'ed Ds charge   " << theDs.charge << std::endl;
+
+ // To use the MC Ds instead of the reco'ed one :
+ //vertex = MCvertex;
+ //momentum = MCmomentum;
+
+        // get the corresponding track parameters using Franco's code 
+        TVectorD track_param = XPtoPar( vertex, momentum, theDs.charge );
+
+        edm4hep::TrackState track;
+        track.D0        = track_param[0] * 1e3 ; // from meters to mm
+        track.phi       = track_param[1];
+        track.omega     = track_param[2] / ( 0.5*1e3 ) ; // C from Franco = rho/2, and convert from m-1 to mm-1
+
+  // need to change here, because the TracSTate of edm4heo currently use
+  // the wrong sign !
+        track.omega = -track.omega ;
+
+        track.Z0        = track_param[3] * 1e3  ;   // from meters to mm
+        track.tanLambda = track_param[4];
+
+        track.referencePoint.x = vertex[0];
         track.referencePoint.y = vertex[1];
         track.referencePoint.z = vertex[2];
 
-	// assume here that the parameters are perfectly measured
-	std::array<float, 15> covMatrix;
-	for (int icov=0; icov < 15; icov++) {
-	   covMatrix[icov] = 1e-15;
-	}
-	track.covMatrix = covMatrix;
+        // assume here that the parameters are perfectly measured
+        std::array<float, 15> covMatrix;
+        for (int icov=0; icov < 15; icov++) {
+           covMatrix[icov] = 0;
+        }
+        // diagonal terms: take error = 5% of the parameter
+        covMatrix[0] = pow( 0.05 * track_param[0] ,2);
+        covMatrix[5] = pow( 0.05 * track_param[1] , 2);
+        covMatrix[9] = pow( 0.05 * track_param[2] , 2) ;
+        covMatrix[12] = pow( 0.05 * track_param[3] , 2);
+        covMatrix[14] = pow( 0.05* track_param[4] , 2);
+        track.covMatrix = covMatrix;
 
-	result.push_back( track );
-
-  }
+        result.push_back( track );
 
   return ROOT::VecOps::RVec<edm4hep::TrackState>( result );
 }
@@ -305,50 +174,225 @@ ROOT::VecOps::RVec<edm4hep::TrackState>  ReconstructedDs_atVertex_TrackState( RO
 // ----------------------------------------------------------------------------------------------------------------------------
 
 
-ROOT::VecOps::RVec<  ROOT::VecOps::RVec<edm4hep::TrackState> > tracks_for_fitting_the_Bs_vertex
-			( ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> RecoDs_atVertex, 
-			  ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData>  BachelorK,
-			  ROOT::VecOps::RVec<edm4hep::TrackState> all_tracks  ) {
+ROOT::VecOps::RVec<edm4hep::TrackState>  tracks_for_fitting_the_Bs_vertex( 
+				ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> RecoDs_atVertex,
+				ROOT::VecOps::RVec<edm4hep::TrackState> BachelorKTrack,
+				ROOT::VecOps::RVec<edm4hep::MCParticleData> theMCDs,
+				edm4hep::Vector3d  theMDsMCDecayVertex   ) {
 
+// ROOT::VecOps::RVec<edm4hep::MCParticleData> theMCDs : passed to debug (use the MC Ds instead of the recoed one)
+
+ ROOT::VecOps::RVec<edm4hep::TrackState>  result;
+
+ if ( RecoDs_atVertex.size() != 1 ) return result;
+ if ( BachelorKTrack.size() != 1 )  return result;
+
+ ROOT::VecOps::RVec<edm4hep::TrackState> DsPseudoTrackState = ReconstructedDs_atVertex_TrackState( RecoDs_atVertex, theMCDs, theMDsMCDecayVertex);
+
+        result.push_back( DsPseudoTrackState[0] );    // the pseudo-Ds track
+        result.push_back( BachelorKTrack[0] );        // the bachelor K
+
+ return result;
+}
+
+
+// ----------------------------------------------------------------------------------------------------------------------------
+
+ROOT::VecOps::RVec<edm4hep::TrackState>  tracks_for_fitting_the_Bs_vertex(
+                                ROOT::VecOps::RVec<edm4hep::TrackState>  ReconstructedDs_atVertex_TrackState_withCovariance,
+				ROOT::VecOps::RVec<edm4hep::TrackState> BachelorKTrack) {
+
+ ROOT::VecOps::RVec<edm4hep::TrackState>  result;
+ if ( ReconstructedDs_atVertex_TrackState_withCovariance.size() != 1 ) return result;
+ if ( BachelorKTrack.size() != 1 )  return result;
+
+ result.push_back( ReconstructedDs_atVertex_TrackState_withCovariance[0])  ;  // the pseudo-Ds track
+ result.push_back( BachelorKTrack[0] );        // the bachelor K
+
+ return result;
+}
+
+// ----------------------------------------------------------------------------------------------------------------------------
+
+
+ROOT::VecOps::RVec<edm4hep::TrackState>  ReconstructedDs_atVertex_TrackState_withCovariance ( 
+			ROOT::VecOps::RVec<edm4hep::TrackState> DsTracks,
+			ROOT::VecOps::RVec<edm4hep::TrackState>  ReconstructedDs_atVertex_TrackState,
+			FCCAnalysesVertex centralVertex ) {
+
+// more complicated: one wants here the TrackState of the Reco'ed Ds at the vertex but now,
+// with the covariance matrix determined "properly" (in order to use this TrackState in
+// the vertex fitter).
+// Done by brute force.
+
+  ROOT::VecOps::RVec<edm4hep::TrackState > result;
+  if ( DsTracks.size() != 3 ) return result;
+
+  if ( ReconstructedDs_atVertex_TrackState.size() != 1 ) return result;
+
+  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  std::default_random_engine generator (seed);
+  std::normal_distribution<double> gaus_distribution(0., 1. );
+
+
+ // central values of the parameters of the Ds at the vertex:
+ double central_param[5];
+ edm4hep::TrackState central_Ds = ReconstructedDs_atVertex_TrackState[0];
+ central_param[0] = central_Ds.D0;
+ central_param[1] = central_Ds.phi;
+ central_param[2] = central_Ds.omega;
+ central_param[3] = central_Ds.Z0;
+ central_param[4] = central_Ds.tanLambda;
+
+ //std::cout << " Central Ds : " << central_Ds.D0 << " " << central_Ds.phi << " " << central_Ds.omega << " " << central_Ds.Z0 << " " << central_Ds.tanLambda << std::endl;
+
+	// Now determine the covariance matrix of these parameters using a Monte-Carlo method
+
+ int nsamples = 300;	// Each "sample" corresponds to a smearing of the
+			// track parameters of the Ds legs, according to their cov matrix.
+
+ // the Ds tracks are in this order: K, K, Pi
+ float mK = 4.9367700e-01;
+ float mPi = 1.3957018e-01;
+ std::vector< float> masses={ mK, mK, mPi };
+
+ double param_base[5];
+ int idxCov[5] = { 0, 5, 9, 12, 14 };  // indices of the diagonal terms in the track covariance matrix
+ double randomGaus[5] ;
+ double param[5];
+
+ double convert[5] = { 1e-3, 1., 0.5*1e3, 1e-3, 1. }; // to convert the edm4hep tracks into Franco's tracks
+						      // ( convert mm to m, and his C = rho / 2 )
+
+ double sum[5];   // to determine the average of the Ds track parameters
+ double sumsq[5]; // to determine the variance of the parameters
  
- ROOT::VecOps::RVec<  ROOT::VecOps::RVec<edm4hep::TrackState> > results;
-
- ROOT::VecOps::RVec<edm4hep::TrackState> DsPseudoTrackState = ReconstructedDs_atVertex_TrackState( RecoDs_atVertex );
-
- int ndecays = DsPseudoTrackState.size();
- if ( BachelorK.size() != ndecays) {
-   std::cout << " --- problem in tracks_for_fitting_the_Bs_vertex :  DsPseudoTrackState.size() = " << ndecays << " but BachelorK.size() = " << BachelorK.size() << std::endl;
-   return results;
+ for (int i=0; i < 5; i++) {
+   sum[i] = 0;
+   sumsq[i] = 0;
  }
 
- for (int idecay = 0; idecay < ndecays; idecay ++) {
-      	std::vector< edm4hep::TrackState> thetracks;
-	thetracks.push_back( DsPseudoTrackState[idecay] );    // the pseudo-Ds track
-	int track_index_BachelorK = BachelorK[idecay].tracks_begin ;
+ TVectorD param_Franco(5);  // the track parameters using Franco's units & definitions
 
-	if ( track_index_BachelorK < all_tracks.size() ) {
-	    thetracks.push_back(  all_tracks.at( track_index_BachelorK ) ) ;
+ for (int isample=0; isample < nsamples; isample++) {
+
+	ROOT::VecOps::RVec<edm4hep::TrackState> modified_trackStates;  // the Ds legs, after smearing
+
+ 	for ( auto & track: DsTracks) {
+
+    	    param_base[0] = track.D0 ;
+    	    param_base[1] = track.phi ;
+    	    param_base[2] = track.omega ;
+    	    param_base[3] = track.Z0 ;
+    	    param_base[4] = track.tanLambda ;
+
+	    edm4hep::TrackState modified_track = track;
+
+	    // modify the track parameters according to their covariance matrix
+	    for (int i=0; i < 5; i++) {
+	        double uncertainty = 0;
+	        if ( track.covMatrix[ idxCov[i] ] > 0 ) {
+		    uncertainty = sqrt( track.covMatrix[ idxCov[i] ] ) ;
+		}
+                randomGaus[i] = gaus_distribution(generator) ;
+		param[i] = param_base[i] + randomGaus[i] * uncertainty;
+	        // and using Franco's definitions & units :
+	        //param_Franco[i] = param[i] * convert[i] ;
+	    }
+
+	    modified_track.D0 		= param[0] ;
+	    modified_track.phi 		= param[1] ;
+	    modified_track.omega	= param[2];
+	    modified_track.Z0		= param[3];
+	    modified_track.tanLambda	= param[4];
+
+	    modified_trackStates.push_back( modified_track );
+
+ 	}  // end loop over the DsTracks
+
+	// Run the vertex fitter over the smeared Ds legs
+	FCCAnalysesVertex vertexObject = VertexFitter_Tk(3, modified_trackStates );
+	  //FCCAnalysesVertex vertexObject = centralVertex ;    // to check mem leak ... 
+        //std::cout << " Fitted Ds vertex: " << vertexObject.vertex.position.x << " " << vertexObject.vertex.position.y << " " << vertexObject.vertex.position.z << std::endl;
+
+        // Reconstruct a Ds :
+        edm4hep::ReconstructedParticleData theDs;
+        TLorentzVector theDs4v;
+        float Ds_charge = 0;
+
+	// now retrieve the track momentum, at the Ds decay vertex
+	for (int itrack=0; itrack < 3; itrack++) {	// 3 tracks are required at the very beginning
+	    TVector3 track_momentum = vertexObject.updated_track_momentum_at_vertex[ itrack ];
+	    TLorentzVector leg;
+	    leg.SetXYZM( track_momentum[0], track_momentum[1], track_momentum[2], masses[itrack] );
+	    theDs4v += leg;
+	    float charge = 1;
+	    if (  modified_trackStates[itrack].omega < 0) charge = -1;  // careful, this is with the edm4hep convention !!
+	    Ds_charge += charge;
 	}
-	else {
-	    std::cout << " --- problem in tracks_for_fitting_the_Bs_vertex: track index of the bachelor K = " << track_index_BachelorK << " but size of the track collection is " << all_tracks.size() << std::endl;
-	}
+        theDs.charge =  Ds_charge;
+        theDs.momentum.x = theDs4v.Px();
+        theDs.momentum.y = theDs4v.Py();
+        theDs.momentum.z = theDs4v.Pz();
+        theDs.mass = theDs4v.M();
+        theDs.referencePoint = vertexObject.vertex.position ;
+        //std::cout << " Ds mass = " << theDs.mass << " charge = " << theDs.charge << std::endl;
 
-	results.push_back( ROOT::VecOps::RVec<edm4hep::TrackState> (thetracks) );
- }
+	// now the TrackState corresponding to this Ds 
+	TVector3 thevtx( 1e-3*theDs.referencePoint.x, 1e-3*theDs.referencePoint.y, 1e-3*theDs.referencePoint.z );  // mm -> m
+        TVector3 themomentum( theDs.momentum.x, theDs.momentum.y, theDs.momentum.z );
+        //std::cout << " the vertex " << thevtx.x() << " " << thevtx.y() << " " << thevtx.z() << std::endl;
+        //std::cout << " the momentum " << themomentum.x() << " " << themomentum.y() << " " << themomentum.z() << std::endl;
+	TVectorD Ds_track_param = XPtoPar( thevtx, themomentum, theDs.charge );
+        edm4hep::TrackState track;
+        track.D0        = Ds_track_param[0] * 1e3 ; // from meters to mm
+        track.phi       = Ds_track_param[1];
+        track.omega     = Ds_track_param[2] / ( 0.5*1e3 ) ; // C from Franco = rho/2, and convert from m-1 to mm-1
+       // need to change here, because the TracSTate of edm4heo currently use
+       // the wrong sign !
+        track.omega = -track.omega ;
+        track.Z0        = Ds_track_param[3] * 1e3  ;   // from meters to mm
+        track.tanLambda = Ds_track_param[4];
 
- return results;
-}
+	param[0] = track.D0;
+	param[1] = track.phi;
+	param[2] = track.omega;
+	param[3] = track.Z0;
+        param[4] = track.tanLambda;
+        //std::cout << " parameters : " << track.D0 << " " << track.phi << " " << track.omega << " " << track.Z0 << " " << track.tanLambda << std::endl;
 
+	// and do the sums to determine the variances of these track parameters...
+	for (int i=0; i < 5; i++) {
+	    sum[i] += param[i];
+	    sumsq[i] += pow( param[i] - central_param[i], 2 );
+   	}
 
-ROOT::VecOps::RVec< FCCAnalysesVertex >  BsVertex( ROOT::VecOps::RVec< ROOT::VecOps::RVec<edm4hep::TrackState> > all_Bs_tracks,
-                                                   ROOT::VecOps::RVec<edm4hep::TrackState> tracks  ) {
-   std::vector< FCCAnalysesVertex > vertices;
-   for (int i=0; i < all_Bs_tracks.size(); i++) {
-      ROOT::VecOps::RVec<edm4hep::TrackState> theTracks = all_Bs_tracks[i];
-      FCCAnalysesVertex vertex = VertexFitter_Tk(2, theTracks, tracks) ;
-      vertices.push_back( vertex) ;
+ } // end loop over isample
+
+ // Central values of the parameters, as determined from the samples
+ // These should be very close to the central_params determined earlier
+ // and stored in ReconstructedDs_atVertex_TrackState (passed in input)
+
+ for (int i=0; i < 5; i++) {
+     sum[i] = sum[i] / float(nsamples);
+     sumsq[i] = sumsq[i] / ( nsamples - 1. );
+  }
+
+  // print outs...
+  //std::cout << " ---- end of ReconstructedDs_atVertex_TrackState_withCovariance " << std::endl;
+  //std::cout << " D0 : " << central_param[0] << std::endl;
+  //std::cout << " D0 from the samples " << sum[0] << std::endl;
+  //std::cout << " D0 variance from the samples = " << sumsq[0] << std::endl;
+
+  edm4hep::TrackState the_final_Ds = ReconstructedDs_atVertex_TrackState[0];
+  // set up its covariance matrix :
+   for (int i=0; i < 5; i++) {
+     the_final_Ds.covMatrix[ idxCov[i] ] = sumsq[i] ;
    }
-  return ROOT::VecOps::RVec< FCCAnalysesVertex >( vertices );
+   result.push_back( the_final_Ds );
+
+ return result;
+
 }
 
 
@@ -357,64 +401,6 @@ ROOT::VecOps::RVec< FCCAnalysesVertex >  BsVertex( ROOT::VecOps::RVec< ROOT::Vec
 
 
 
-// ---------------------------------------------------------------------------------------------------------------------------
 
-/*
-edm4hep::TrackState Track_from_RP( edm4hep::ReconstructedParticleData> particle) {
-
-  edm4hep::TrackState track;
-  float pt = sqrt( pow( particle.momentum.x,2) + pow( particle.momentum.y,2) );
-  track.omega = ;
-  
-}
-
-
-// ---------------------------------------------------------------------------------------------------------------------------
-
-ROOT::VecOps::RVec<edm4hep::TrackState> ReconstructedDsTrackState( ROOT::VecOps::RVec<int> recind, ROOT::VecOps::RVec<int> mcind, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco,  ROOT::VecOps::RVec<edm4hep::MCParticleData> mc, ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> > ndecays  ) {
-
- std::vector< edm4hep::TrackState>   result;
-
-   for (int idecay = 0; idecay < ndecays.size(); idecay++) {
-    std::vector<int> indices = ndecays[idecay];
-    edm4hep::ReconstructedParticleData theDs;
-
-    for (int id = 0; id < indices.size(); id++) {
-      int idx = indices[id];
-      if ( mc.at(idx).PDG  == 431 ) {   // the Ds
-
-      TLorentzVector theDs4v;
-      float Ds_charge = 0;
-
-      std::vector<int>  stable_daughters = list_of_stable_particles_from_decay( idx, mc, ind );
-
-      for (int i=0; i<recind.size();i++) {
-          int reco_idx = recind.at(i);
-          // keep only charged particles
-          if ( reco.at( reco_idx ).charge == 0 ) continue;
-          int mc_idx = mcind.at(i);
-
-          if ( std::find( stable_daughters.begin(), stable_daughters.end(), mc_idx ) != stable_daughters.end() ) {
-                TLorentzVector leg;
-                leg.SetXYZM( reco.at( reco_idx ).momentum.x, reco.at( reco_idx ).momentum.y, reco.at( reco_idx ).momentum.z, mc.at(mc_idx).mass );
-                theDs4v +=  leg;
-                Ds_charge += mc.at(mc_idx).charge;
-          }
-      }
-
-      theDs.charge =  Ds_charge;
-      theDs.momentum.x = theDs4v.Px();
-      theDs.momentum.y = theDs4v.Py();
-      theDs.momentum.z = theDs4v.Pz();
-      theDs.mass = theDs4v.M();
-
-      }
-    }
-    result.push_back( theDs );
-    }
- return ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData>( result );
-}
-
-*/
 
 

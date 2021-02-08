@@ -28,10 +28,12 @@ class analysis():
         print (" done")
     #__________________________________________________________
     def run(self):
-        #df2 = (self.df.Range(1000)
+        #df2 = (self.df.Range(100000)
         df2 = (self.df
 
                .Alias("Particle1", "Particle#1.index")
+               .Alias("MCRecoAssociations0", "MCRecoAssociations#0.index")
+               .Alias("MCRecoAssociations1", "MCRecoAssociations#1.index")
 
                # MC event primary vertex
                .Define("MC_PrimaryVertex",  "getMC_EventPrimaryVertex(21)( Particle )" )
@@ -39,107 +41,128 @@ class analysis():
                # number of tracks
                .Define("ntracks","get_nTracks(EFlowTrack_1)")
 
-               # Select primary tracks based on the matching to MC
-		  # This can be used  to select primary tracks when the
-		  # gen-level primary vertex  is not  (0,0,0)
-               .Alias("MCRecoAssociations0", "MCRecoAssociations#0.index")
-               .Alias("MCRecoAssociations1", "MCRecoAssociations#1.index")
-               .Define("PrimaryTracks",  "SelPrimaryTracks(MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles,Particle, MC_PrimaryVertex)" )
-               .Define("nPrimaryTracks", "getRP_n(PrimaryTracks)")
-               # Reconstruct the vertex from these primary tracks :
-               .Define("Vertex_primaryTracks",  "VertexFitter ( 1, PrimaryTracks, EFlowTrack_1) ")   # primary vertex, in mm
 
-               # Reco to MC indices :
-               .Define( "RP2MC_indices",  "getRP2MC_index( MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles )")
+               # MC indices of the decay Bs -> Ds+ K-
+               # In the file I process, only the Bs0 (not the Bsbar) has been forced to decay into Ds+ K-
+               # Look for (Ds+ K-) in the list of unstable decays of a Bs - hence oscillations are
+               # not accounted for. So there should be at most one such decay per event. In any case,
+               # would there be > 1, the method gives the first one encountered.
+               # Returns the indices of : mother Bs, Ds+, K-
 
-               # Bs to Ds K decay : indices
-               .Define("Bs2DsK_indices",  "getMC_indices_Bs2DsK(  Particle,  Particle1  )")
+               .Define("Bs2DsK_indices", "getMC_indices_ExclusiveDecay( 531, {431, -321}, false, false) ( Particle, Particle1)" )
 
-	       # Number of decays Bs -> Ds K
-               .Define("nBs",  "MC_nBs2DsK( Bs2DsK_indices )")
+               # MC indices of (this) Ds+ -> K+ K- Pi+
+               # Do not want *any* Ds here, hence use custom code in Bs2DsK.cc
+               # Returns the indices of:  mother Ds+, K+ K- Pi+
+               .Define("Ds2KKPi_indices",  "getMC_indices_Ds2KKPi( Bs2DsK_indices, Particle, Particle1) ")
 
-               # the MC Ds from the Bs  decay
-               .Define("Ds",  "getMC_Ds( Particle, Bs2DsK_indices )")
-               # the Ds   energy   
+               # MC indices of Bs -> ( K+ K- Pi+ ) K-
+               # Return the indices of:  mother Bs, ( K+ K- Pi+ ) K-
+               .Define("Bs2KKPiK_indices",  "getMC_indices_Bs2KKPiK( Bs2DsK_indices,  Ds2KKPi_indices)" )
+
+               # the MC Bs :
+               .Define("Bs",  "selMC_leg(0) ( Bs2DsK_indices, Particle )")
+               # the MC Ds :
+               .Define("Ds",  "selMC_leg(1) ( Bs2DsK_indices, Particle )")
+               # the MC bachelor K- from the Bs decay :
+               .Define("BachelorK",  "selMC_leg(2) ( Bs2DsK_indices, Particle )")
+
+               # The MC legs from the Ds decay
+               .Define("Kplus",   "selMC_leg(1) ( Bs2KKPiK_indices, Particle )")
+               .Define("Kminus",   "selMC_leg(2) ( Bs2KKPiK_indices, Particle )")
+               .Define("Piplus",   "selMC_leg(3) ( Bs2KKPiK_indices, Particle )")
+
+               # the Ds kinematics 
                .Define("Ds_E",  "getMC_e( Ds )")
                .Define("Ds_pt", "getMC_pt( Ds ) ")
                .Define("Ds_theta", "getMC_theta( Ds )")
                .Define("Ds_phi", "getMC_phi( Ds )")
 
-               # The MC legs from the Ds decay
-               .Define("Kplus",   "getMC_Kplus( Particle, Particle1, Bs2DsK_indices)")
-               .Define("Kminus",   "getMC_Kminus( Particle, Particle1, Bs2DsK_indices)")
-               .Define("Piplus",   "getMC_Piplus( Particle, Particle1, Bs2DsK_indices)")
-
-              
-               # the MC bachelor K from the Ds decay
-               .Define("BachelorK",  "getMC_BachelorK( Particle, Bs2DsK_indices )")
+               # the bachelor K kinematics
                .Define("BachelorK_E",  "getMC_e( BachelorK )")
                .Define("BachelorK_theta",  "getMC_theta( BachelorK )")
 
                # Decay vertex of the Ds
-               .Define("DsDecayVertex", " MC_Ds_DecayVertex( Particle,  Particle1, Bs2DsK_indices  )")
-               # Decay vertex of the Bs
-               .Define("BsDecayVertex", " MC_Bs_DecayVertex( Particle,  Particle1, Bs2DsK_indices  )")
+               # This takes the production vertex of the 1st non mother particle in Bs2KKPiK_indices, i.e.
+               # of the K+ from the Ds, that's what we want. Need to change the name of this method, give it a more general name !
+               .Define("DsMCDecayVertex",  "BsMCDecayVertex( Ds2KKPi_indices, Particle ) ")
 
-	       # Tracks associated with Ds (from Bs) decays :
-               .Define("DsTracks",  "selChargedRP_DsfromBs( MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles,Particle, Particle1, Bs2DsK_indices )" )
-	       # Number of such tracks :
-               .Define("nDsTracks",  "n_DsTracks( DsTracks )")
+               # Decay vertex of the Bs :
+               # Use the BsMCDecayVertex coded for Bs2JPsiPhi: take the production vertex of the Ds. 
+               .Define("BsMCDecayVertex",  "BsMCDecayVertex( Bs2DsK_indices, Particle ) ")
+
+
+               # RecoParticles associated with the Ds decay
+               # the size of this collection is always 3 provided that Ds2KKPi_indices is not empty.
+               # In case one of the Ds legs did not make a RecoParticle, a "dummy" particle is inserted in the liat.
+               # This is done on purpose, to maintain the mapping with the indices.
+               .Define("DsRecoParticles",   " selRP_matched_to_list( Ds2KKPi_indices, MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles,Particle)")
+
+               # the corresponding tracks - here, dummy particles, if any, are removed
+               .Define("DsTracks",  "getRP2TRK( DsRecoParticles, EFlowTrack_1)" )
+
+               # number of tracks used to reconstruct the Ds vertex
+               .Define("n_DsTracks", "getTK_n( DsTracks )")
 
                # the RecoParticles associated with the K+, K- and Pi+ of teh Ds decay
-               .Define("RecoKplus",  "RecoKplus( DsTracks) ")
-               .Define("RecoKminus", "RecoKminus( DsTracks)")
-               .Define("RecoPiplus", "RecoPiplus( DsTracks)")
+               .Define("RecoKplus",  "selRP_leg(0)( DsRecoParticles )" )
+               .Define("RecoKminus", "selRP_leg(1)( DsRecoParticles )" )
+               .Define("RecoPiplus", "selRP_leg(2)( DsRecoParticles )" )
 
                # Reco'ed vertex of the Ds
-               .Define("DsVertexObject",  "DsVertex( DsTracks, EFlowTrack_1) ")
-               .Define("DsVertex",  " get_VertexData( DsVertexObject )")
-             
-	
+               .Define("DsVertexObject",  "VertexFitter_Tk( 3, DsTracks)" )
+               .Define("DsVertex",  "get_VertexData( DsVertexObject )")
+
+
+	       # -------------------------------------------------------------------------------------------------------
+
+               # ----------  Reconstruction of the Bs vertex 
+
+               # the reco'ed legs of the Ds, with the momenta at the Ds decay vertex
+               .Define("RecoKplus_atVertex",  "selRP_leg_atVertex(0)( DsRecoParticles, DsVertexObject, EFlowTrack_1)")
+               .Define("RecoKminus_atVertex",  "selRP_leg_atVertex(1)( DsRecoParticles, DsVertexObject, EFlowTrack_1)")
+               .Define("RecoPiplus_atVertex",  "selRP_leg_atVertex(2)( DsRecoParticles, DsVertexObject, EFlowTrack_1)")
+
+               # the  RecoParticle associated with  the bachelor K
+                .Define("BsRecoParticles", "selRP_matched_to_list( Bs2KKPiK_indices, MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles,Particle)")
+                .Define("RecoBachelorK",  "selRP_leg(3)( BsRecoParticles )")
+               # and the corresponding track
+                .Define("BachelorKTrack",  "getRP2TRK(  RecoBachelorK, EFlowTrack_1)" )
+
                # Reconstructed Ds
-                .Define("RecoDs", " ReconstructedDs( MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles,Particle, Particle1, Bs2DsK_indices )" )
-                .Define("RecoDs_atVertex",  "ReconstructedDs_atVertex( DsVertexObject, MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles, Particle)" )
+                .Define("RecoDs", " ReconstructedDs( RecoKplus, RecoKminus, RecoPiplus ) ")
+                .Define("RecoDs_atVertex",  " ReconstructedDs( RecoKplus_atVertex, RecoKminus_atVertex, RecoPiplus_atVertex) ")
 
                 .Define("RecoDs_pt",  "getRP_pt( RecoDs )")
                 .Define("RecoDs_theta",  "getRP_theta( RecoDs ) ")
                 .Define("RecoDs_phi",   "getRP_phi( RecoDs )")
+                .Define("RecoDs_mass",  "getRP_mass( RecoDs )")
 
                 .Define("RecoDs_atVertex_pt",  "getRP_pt( RecoDs_atVertex )")
                 .Define("RecoDs_atVertex_theta",  "getRP_theta( RecoDs_atVertex )")
                 .Define("RecoDs_atVertex_phi",   "getRP_phi( RecoDs_atVertex )")
+                .Define("RecoDs_atVertex_mass",  "getRP_mass( RecoDs_atVertex )")
 
-
-               # the RecoParticles associated with the bachelor K's
-               .Define("RecoBachelorK",  "selChargedRP_KfromBs( RP2MC_indices, ReconstructedParticles, Bs2DsK_indices )" )
-
-            
                # the list of tracks to reconstruct the Bs vertex
-               .Define("BsTracks",  "tracks_for_fitting_the_Bs_vertex( RecoDs_atVertex, RecoBachelorK, EFlowTrack_1 )")
+	       # here, a TrackState is built from the RecoDs_atVertex, but the elements of the covariance matrix are
+               # set arbitrarily - use a relative uncertainty of 5% for the parameters.
+               # See below for a better way to do it.
+               .Define("BsTracks",  "tracks_for_fitting_the_Bs_vertex( RecoDs_atVertex, BachelorKTrack, Ds, DsMCDecayVertex )" )
+               .Define("n_BsTracks", "getTK_n( BsTracks )")
 
                # Reco'ed Bs vertex
-               .Define("BsVertexObject",  "BsVertex( BsTracks, EFlowTrack_1) ")
-               .Define("BsVertex",  "get_VertexData( BsVertexObject ) ")
+               .Define("BsVertexObject",  "VertexFitter_Tk( 2, BsTracks)" )
+               .Define("BsVertex",  "get_VertexData( BsVertexObject )")
 
 
-               # Bs to Ds(KKpi) K  decay ?
-               #.Define("Bsdecay",  "getMC_decay(531, 443, false)(Particle, Particle1)")
-               #.Define("Bsbardecay",  "getMC_decay(-531, 443, false)(Particle, Particle1)")
+	       # Try to better account for the covariance matrix of the Ds pseudo-track
+               .Define("ReconstructedDs_atVertex_TrackState", "ReconstructedDs_atVertex_TrackState( RecoDs_atVertex, Ds, DsMCDecayVertex )" )
+               .Define("RecoDs_atVertex_TrackState_Cov",  "ReconstructedDs_atVertex_TrackState_withCovariance( DsTracks, ReconstructedDs_atVertex_TrackState, DsVertexObject) ")
+               .Define("BsTracks_Cov",  "tracks_for_fitting_the_Bs_vertex( RecoDs_atVertex_TrackState_Cov, BachelorKTrack) ")
+               .Define("BsVertexObject_Cov",  "VertexFitter_Tk( 2, BsTracks_Cov)" )
+               # This is the final Bs vertex
+               .Define("BsVertex_Cov",  "get_VertexData( BsVertexObject_Cov )")
 
-               # MC Bs
-               #.Define("Bs",  "selMC_PDG(531,  false)(Particle)")
-               #.Define("Bsbar",  "selMC_PDG(-531,  false)(Particle)")
-               #.Define("nBs",  "getMC_n( Bs)")
-               #.Define("nBsbar",  "getMC_n( Bsbar)")
-
-               # Decay vertex of theBs
-		# does not work...  the endpoint is not filled in the files
-               #.Define("BsDecayVertex",  "getMC_endPoint( Bs )")
-
-               #.Define("BsDecayVertex",   "getMC_decayVertex(531, false)( Particle, Particle1)")
-
-               #.Define("BsTracks",   "selRP_Bs2JPsiPhi(MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles,Particle,Particle1)")
-               #.Define("BsVertex",   "VertexFitter( 1, BsTracks, EFlowTrack_1)" )
         )
 
 
@@ -148,39 +171,41 @@ class analysis():
         for branchName in [
                 #"MC_PrimaryVertex",
                 #"ntracks",
-                #"nPrimaryTracks",
-                #"Vertex_primaryTracks",     # on Zuds: both track selections lead to very similar results for the vertex
-                #"Bs2DsK_indices",
-                "nBs",
-                "Ds",
+                "Bs",
+                #"Ds",
+                #"BachelorK",
                 "Ds_E",
                 "Ds_pt",
                 "Ds_theta",
                 "Ds_phi",
-                "BachelorK",
                 "BachelorK_E",
                 "BachelorK_theta",
-                "Kplus",
-                "Kminus",
-                "Piplus",
-                "DsDecayVertex",
-                "BsDecayVertex",
+                #"Kplus",
+                #"Kminus",
+                #"Piplus",
+                "DsMCDecayVertex",
+                "BsMCDecayVertex",
                 #"DsTracks",
-                "nDsTracks",
-                "RecoKplus",
-                "RecoKminus",
-                "RecoPiplus",
+                "n_DsTracks",
+                #"RecoKplus",
+                #"RecoKminus",
+                #"RecoPiplus",
                 "DsVertex",
                 "RecoDs",
-                "RecoDs_atVertex",
+                #"RecoDs_atVertex",
                 "RecoDs_pt",
                 "RecoDs_theta",
                 "RecoDs_phi",
-                "RecoDs_atVertex_pt",
+                "RecoDs_mass",
+                #"RecoDs_atVertex_pt",
                 "RecoDs_atVertex_theta",
                 "RecoDs_atVertex_phi",
-                "RecoBachelorK",
-                "BsVertex"
+                "RecoDs_atVertex_mass",
+                #"RecoBachelorK",
+                "BsVertex",
+                "n_BsTracks",
+                #"RecoDs_atVertex_TrackState_Cov"
+                "BsVertex_Cov"
 
                 ]:
             branchList.push_back(branchName)

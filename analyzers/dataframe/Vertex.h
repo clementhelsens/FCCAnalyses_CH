@@ -82,13 +82,10 @@ FCCAnalysesVertex  VertexFitter( int Primary, ROOT::VecOps::RVec<edm4hep::Recons
 					ROOT::VecOps::RVec<edm4hep::TrackState> tracks ) ;
 
 
-FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::TrackState> tracks,
-                                        ROOT::VecOps::RVec<edm4hep::TrackState> thetracks ) ;
+FCCAnalysesVertex  VertexFitter_Tk( int Primary, ROOT::VecOps::RVec<edm4hep::TrackState> tracks );
 
-//edm4hep::VertexData get_VertexData( FCCAnalysesVertex TheVertex) ;
 
-ROOT::VecOps::RVec< edm4hep::VertexData > get_VertexData( ROOT::VecOps::RVec< FCCAnalysesVertex > TheVertex );
-edm4hep::VertexData get_oneVertexData( FCCAnalysesVertex TheVertex ) ;
+edm4hep::VertexData get_VertexData( FCCAnalysesVertex TheVertex ) ;
 
 #endif
 

@@ -229,117 +229,50 @@ std::vector<edm4hep::ReconstructedParticleData> selRP_ChargedHadrons (ROOT::VecO
   return result;
 }
 
-
 // -------------------------------------------------------------------------------------------------
 
-// -- select the reco'ed particles associated with MC muons that come from the
-// -- decay of a J/Psi
+// -- select RecoParticles associated with a list of MC particles (passed by their index in the Particle block)
 
-/// selMuons_JPsimatch::selMuons_JPsimatch( int arg_dum ) : m_dummy(arg_dum) {};
+ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> selRP_matched_to_list( ROOT::VecOps::RVec<int>  mcParticles_indices,
+		ROOT::VecOps::RVec<int> recind, ROOT::VecOps::RVec<int> mcind, 
+		ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco,  ROOT::VecOps::RVec<edm4hep::MCParticleData> mc) {
 
-selMuons_JPsimatch::selMuons_JPsimatch( int pdg_mother, int pdg_daughter1, int pdg_daughter2) {
-  m_pdg_mother = pdg_mother;
-  m_pdg_daughter1 = pdg_daughter1;
-  m_pdg_daughter2 = pdg_daughter2;
-} ;
+ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData>  results;
 
-    
-std::vector<edm4hep::ReconstructedParticleData> selMuons_JPsimatch::operator() (ROOT::VecOps::RVec<int> recind, ROOT::VecOps::RVec<int> mcind, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco,  ROOT::VecOps::RVec<edm4hep::MCParticleData> mc, ROOT::VecOps::RVec<int> mcdaughters) {
+  edm4hep::ReconstructedParticleData dummy;
+  dummy.energy = -9999;
+  dummy.tracks_begin = -9999 ;
 
-    
-  std::vector<edm4hep::ReconstructedParticleData> result;
-  std::vector< std::array<int, 2> >  MCmuons_from_JPsis = get_MC_legs_from_mothers( m_pdg_mother, m_pdg_daughter1, m_pdg_daughter2, true)( mc, mcdaughters) ;
-  int nJPsis = MCmuons_from_JPsis.size() ;
-  //std::cout << " number of mothers in this event  = " << nJPsis << std::endl;
+  for ( auto & idx: mcParticles_indices ) {
 
-  if ( nJPsis <1) return result ;
+    // exclude unstable particles - e.g. the list may contain the index of
+    // the mother
+    if ( mc.at(idx).generatorStatus != 1 ) continue ;
 
-
-  for( int ijpsi=0; ijpsi < nJPsis; ijpsi ++) {
-
-      std::array<int, 2>  MCmuons_JPsi = MCmuons_from_JPsis[ ijpsi ] ;
-      if (MCmuons_JPsi[0]<0 || MCmuons_JPsi[1]<0) continue;
-
-      // std::cout << " indices of the MC legs = " << MCmuons_JPsi[0] << " " << MCmuons_JPsi[1] << std::endl;
-
-      int nlegs =0;
-      for (int i=0; i<recind.size();i++) {
-          int reco_idx = recind.at(i);
-          // keep only charged particles
-          if ( reco.at( reco_idx ).charge == 0 ) continue;
-          int mc_idx = mcind.at(i);
-          if ( mc_idx == MCmuons_JPsi[0] || mc_idx == MCmuons_JPsi[1]) {
-             result.push_back( reco.at( reco_idx ) ) ;	 
-             nlegs ++;
-          }
+    // is this MC particle associated with a Reco particle :
+    bool found = false;
+    for (int i=0; i<recind.size();i++) {
+      int reco_idx = recind.at(i);
+      int mc_idx = mcind.at(i);
+      if ( mc_idx == idx ) {
+        found = true;
+	results.push_back( reco.at( reco_idx ) );
+	break;
       }
+    } 
+    // no Reco particle has been found for idx: add a dummy particle such that
+    // one preserves the mapping with the input list
+    if ( ! found) results.push_back( dummy );
 
-      if ( nlegs == 1 ) {   // one of the muons from this JPsi didnot make a RecoParticle
-			    // e.g. outside of the tracker acceptance
-       			    // in which case, remove the other leg if it was found
-       	result.pop_back() ;
-      }
 
-  }  // loop over the JPsis
+  } // loop over the indices in the list
 
-  return result;
-}
+  return results;
 
-// -------------------------------------------------------------------------------------------------
-
-// -- select the reco'ed particles associated with Bs -> JPsi(mumu) phi(KK)
-
-ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> selRP_Bs2JPsiPhi( ROOT::VecOps::RVec<int> recind, ROOT::VecOps::RVec<int> mcind, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco,  ROOT::VecOps::RVec<edm4hep::MCParticleData> mc, ROOT::VecOps::RVec<int> mcdaughters) {
-
-  std::vector<edm4hep::ReconstructedParticleData> result;
-
-  ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> muons_from_JPsi = selMuons_JPsimatch( 531, 13, -13)( recind, mcind, reco, mc, mcdaughters);
-  ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> kaons_from_Phi = selMuons_JPsimatch( 531, 321, -321)( recind, mcind, reco, mc, mcdaughters);
-
-  //if ( muons_from_JPsi.size() != 2 ) std::cout << " -- problem with this Bs, #muons from JPsi = " << muons_from_JPsi.size() << std::endl; 
-  //if ( kaons_from_Phi.size() != 2 )  std::cout << " -- problem with this Bs, #kaons from Phi = " << kaons_from_Phi.size() << std::endl;
-
-  if ( muons_from_JPsi.size() == 2 && kaons_from_Phi.size() == 2 ) {
-  // keep only the first Bs, anyway cases with 2 Bs are rare
-    result.push_back( muons_from_JPsi[0] );
-    result.push_back( muons_from_JPsi[1] );
-    result.push_back(kaons_from_Phi[0]);
-    result.push_back(kaons_from_Phi[1]);
-  }
-
- return ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData>( result);
 }
 
 
-// -------------------------------------------------------------------------------------------------
 
-ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> selChargedRP_MCmatch_daughtersOf( int index, ROOT::VecOps::RVec<int> recind, ROOT::VecOps::RVec<int> mcind, ROOT::VecOps::RVec<edm4hep::ReconstructedParticleData> reco,  ROOT::VecOps::RVec<edm4hep::MCParticleData> mc, ROOT::VecOps::RVec<int> ind ) {
-
-  std::vector<edm4hep::ReconstructedParticleData> result;
-
-  std::vector<int>  stable_daughters = list_of_stable_particles_from_decay( index, mc, ind );
-
-  //for ( int j=0; j < stable_daughters.size(); j++) {
-      //std::cout << "      Ds decayed into PDG = " << mc[stable_daughters[j]].PDG << std::endl;
-  //}
-
-      int nlegs =0;
-      for (int i=0; i<recind.size();i++) {
-          int reco_idx = recind.at(i);
-          // keep only charged particles
-          if ( reco.at( reco_idx ).charge == 0 ) continue;
-          int mc_idx = mcind.at(i);
-      
-          if ( std::find( stable_daughters.begin(), stable_daughters.end(), mc_idx ) != stable_daughters.end() ) {
-		result.push_back( reco.at( reco_idx ) ) ;
-		nlegs ++;
-	  }
-
-      }
-
-   return ROOT::VecOps::RVec( result );
-  
-}
 
 // -------------------------------------------------------------------------------------------------
 

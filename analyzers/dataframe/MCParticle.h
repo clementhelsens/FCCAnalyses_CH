@@ -93,6 +93,9 @@ ROOT::VecOps::RVec<float> getMC_vertex_z(ROOT::VecOps::RVec<edm4hep::MCParticleD
 /// return the end point of the input MCParticles
 ROOT::VecOps::RVec<edm4hep::Vector3d> getMC_endPoint(ROOT::VecOps::RVec<edm4hep::MCParticleData> in);
 
+/// return the end point of the input MCParticles (not using the "endpoint" that is currently not filled)
+ROOT::VecOps::RVec<edm4hep::Vector3d> getMC_endPoint(ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind );
+
 /// return the end point x of the input MCParticles
 ROOT::VecOps::RVec<float> getMC_endPoint_x(ROOT::VecOps::RVec<edm4hep::MCParticleData> in);
 
@@ -162,16 +165,6 @@ std::vector<int> list_of_stable_particles_from_decay( int i, ROOT::VecOps::RVec<
 
 std::vector<int> list_of_particles_from_decay( int i, ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind) ;
 
-//std::vector< std::array<int, 2> > get_MC_muons_from_JPsis( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind) ;
-
-struct get_MC_legs_from_mothers{
-  get_MC_legs_from_mothers( int pdg_mother, int pdg_daughter1, int pdg_daughter2, bool stableDaughters) ;
-  int m_pdg_mother = 443;
-  int m_pdg_daughter1 = 13;
-  int m_pdg_daughter2 = -13;
-  bool m_stableDaughters = true;
-  std::vector< std::array<int, 2> > operator() ( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind) ;
-};
 
 
 ///  decay vertex of a MCparticle (because the "endpoints"  are not filled in the  files)
@@ -185,18 +178,22 @@ struct getMC_decayVertex{
 };
 
 
-// -- stuff specific to Bs to Ds K 
-ROOT::VecOps::RVec< std::vector<int> > getMC_indices_Bs2DsK( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind) ;
 
-int MC_nBs2DsK( ROOT::VecOps::RVec< std::vector<int> > ndecays ) ;
-ROOT::VecOps::RVec< edm4hep::Vector3d > MC_Ds_DecayVertex( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> > ndecays) ;
-ROOT::VecOps::RVec< edm4hep::Vector3d > MC_Bs_DecayVertex( ROOT::VecOps::RVec<edm4hep::MCParticleData> in, ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> > ndecays) ;
+struct getMC_indices_ExclusiveDecay{
+   getMC_indices_ExclusiveDecay( int pdg_mother, std::vector<int> pdg_daughters, bool stableDaughters, bool chargeConjugate ) ;
+   int m_pdg_mother;
+   std::vector<int> m_pdg_daughters;
+   bool m_stableDaughters;
+   bool m_chargeConjugate; 
+   ROOT::VecOps::RVec<int>   operator() ( ROOT::VecOps::RVec<edm4hep::MCParticleData> in , ROOT::VecOps::RVec<int> ind);
+};
 
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_Ds( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec< std::vector<int> >   ndecays) ;
+ROOT::VecOps::RVec<int>  getMC_indices_ExclusiveDecay_MotherByIndex( int imother, std::vector<int> m_pdg_daughters, bool m_stableDaughters,
+					ROOT::VecOps::RVec<edm4hep::MCParticleData> in , ROOT::VecOps::RVec<int> ind);
 
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_BachelorK( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec< std::vector<int> >   ndecays) ;
+   
 
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_Piplus( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> >   ndecays) ;
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_Kplus( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> >   ndecays) ;
-ROOT::VecOps::RVec<edm4hep::MCParticleData> getMC_Kminus( ROOT::VecOps::RVec<edm4hep::MCParticleData> in,  ROOT::VecOps::RVec<int> ind, ROOT::VecOps::RVec< std::vector<int> >   ndecays) ;
+/// returns one MCParticle selected by its index in the particle block
+edm4hep::MCParticleData selMC_byIndex( int idx, ROOT::VecOps::RVec<edm4hep::MCParticleData> in) ;
+
 #endif
