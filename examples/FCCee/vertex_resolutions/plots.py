@@ -3,7 +3,8 @@ r.gROOT.SetBatch(True)
 r.gROOT.ForceStyle()
 r.gStyle.SetOptStat(0)
 
-basepath='/afs/cern.ch/user/h/helsens/FCCsoft/FCCAnalyses_EP/outputs/FCCee/vertex_resolutions/'
+#Change your basepath and the name of your output files, below are test files
+basepath='/eos/experiment/fcc/ee/tmp/flatntuples/Z_Zbb_Bc2TauNu_vertex/'
 fBc = 'events_Bc2TauNuTAUHADNU_test.root'
 fBu = 'events_Bu2TauNuTAUHADNU_test.root'
 
@@ -304,8 +305,8 @@ cnt.SaveAs(basepath+"plots/Benergy.png")
 ########################################
 hE_Pion1_Bc = r.TH1F("hE_Pion1_Bc",";Leading pion energy [GeV]; a.u.",100,0.,50.)
 ttBc.Draw("Pion1_e >>hE_Pion1_Bc")
-hE_Pion1_Bu = r.TH1F("hE_Pion1_Bu",";B Energy [GeV]; a.u.",100,0.,50.)
-ttBu.Draw("B_e >>hE_Pion1_Bu")
+hE_Pion1_Bu = r.TH1F("hE_Pion1_Bu",";Leading pion energy [GeV]; a.u.",100,0.,50.)
+ttBu.Draw("Pion1_e >>hE_Pion1_Bu")
 cnt = r.TCanvas("cnt","cnt")
 hE_Pion1_Bu.Scale(1./hE_Pion1_Bu.Integral(0,-1))
 hE_Pion1_Bu.SetLineColor(4)
@@ -318,3 +319,79 @@ tt.DrawLatexNDC(0.2,0.96,"#color[2]{B_{c}^{#pm}} or #color[4]{B^{#pm}}  #rightar
 cnt.SaveAs(basepath+"plots/Pion1energy.pdf")
 cnt.SaveAs(basepath+"plots/Pion1energy.png")
 
+########################################
+#############Pion2 energy###############
+########################################
+hE_Pion2_Bc = r.TH1F("hE_Pion2_Bc",";Sub-leading pion energy [GeV]; a.u.",100,0.,50.)
+ttBc.Draw("Pion2_e >>hE_Pion2_Bc")
+hE_Pion2_Bu = r.TH1F("hE_Pion2_Bu",";Sub-leading pion energy [GeV]; a.u.",100,0.,50.)
+ttBu.Draw("Pion2_e >>hE_Pion2_Bu")
+cnt = r.TCanvas("cnt","cnt")
+hE_Pion2_Bu.Scale(1./hE_Pion2_Bu.Integral(0,-1))
+hE_Pion2_Bu.SetLineColor(4)
+hE_Pion2_Bu.Draw("HIST,E1")
+hE_Pion2_Bc.Scale(1./hE_Pion2_Bc.Integral(0,-1))
+hE_Pion2_Bc.SetLineColor(2)
+hE_Pion2_Bc.Draw("HIST,same,E1")
+
+tt.DrawLatexNDC(0.2,0.96,"#color[2]{B_{c}^{#pm}} or #color[4]{B^{#pm}}  #rightarrow #tau#nu #tau #rightarrow #pi#pi#pi#nu")
+cnt.SaveAs(basepath+"plots/Pion2energy.pdf")
+cnt.SaveAs(basepath+"plots/Pion2energy.png")
+
+
+########################################
+#############Pion3 energy###############
+########################################
+hE_Pion3_Bc = r.TH1F("hE_Pion3_Bc",";Sub-sub-leading pion energy [GeV]; a.u.",100,0.,50.)
+ttBc.Draw("Pion3_e >>hE_Pion3_Bc")
+hE_Pion3_Bu = r.TH1F("hE_Pion3_Bu",";Sub-sub-leading pion energy [GeV]; a.u.",100,0.,50.)
+ttBu.Draw("Pion3_e >>hE_Pion3_Bu")
+cnt = r.TCanvas("cnt","cnt")
+hE_Pion3_Bu.Scale(1./hE_Pion3_Bu.Integral(0,-1))
+hE_Pion3_Bu.SetLineColor(4)
+hE_Pion3_Bu.Draw("HIST,E1")
+hE_Pion3_Bc.Scale(1./hE_Pion3_Bc.Integral(0,-1))
+hE_Pion3_Bc.SetLineColor(2)
+hE_Pion3_Bc.Draw("HIST,same,E1")
+
+tt.DrawLatexNDC(0.2,0.96,"#color[2]{B_{c}^{#pm}} or #color[4]{B^{#pm}}  #rightarrow #tau#nu #tau #rightarrow #pi#pi#pi#nu")
+cnt.SaveAs(basepath+"plots/Pion3energy.pdf")
+cnt.SaveAs(basepath+"plots/Pion3energy.png")
+
+########################################
+#############Nu1 energy###############
+########################################
+hE_Nu1_Bc = r.TH1F("hE_Nu1_Bc",";Leading neutrino energy [GeV]; a.u.",100,0.,50.)
+ttBc.Draw("Nu1_e >>hE_Nu1_Bc")
+hE_Nu1_Bu = r.TH1F("hE_Nu1_Bu",";leading neutrino energy [GeV]; a.u.",100,0.,50.)
+ttBu.Draw("Nu1_e >>hE_Nu1_Bu")
+cnt = r.TCanvas("cnt","cnt")
+hE_Nu1_Bu.Scale(1./hE_Nu1_Bu.Integral(0,-1))
+hE_Nu1_Bu.SetLineColor(4)
+hE_Nu1_Bu.Draw("HIST,E1")
+hE_Nu1_Bc.Scale(1./hE_Nu1_Bc.Integral(0,-1))
+hE_Nu1_Bc.SetLineColor(2)
+hE_Nu1_Bc.Draw("HIST,same,E1")
+
+tt.DrawLatexNDC(0.2,0.96,"#color[2]{B_{c}^{#pm}} or #color[4]{B^{#pm}}  #rightarrow #tau#nu #tau #rightarrow #pi#pi#pi#nu")
+cnt.SaveAs(basepath+"plots/Nu1energy.pdf")
+cnt.SaveAs(basepath+"plots/Nu1energy.png")
+
+########################################
+#############Nu2 energy###############
+########################################
+hE_Nu2_Bc = r.TH1F("hE_Nu2_Bc",";Sub-leading neutrino energy [GeV]; a.u.",100,0.,50.)
+ttBc.Draw("Nu2_e >>hE_Nu2_Bc")
+hE_Nu2_Bu = r.TH1F("hE_Nu2_Bu",";Sub-leading neutrino energy [GeV]; a.u.",100,0.,50.)
+ttBu.Draw("Nu2_e >>hE_Nu2_Bu")
+cnt = r.TCanvas("cnt","cnt")
+hE_Nu2_Bu.Scale(1./hE_Nu2_Bu.Integral(0,-1))
+hE_Nu2_Bu.SetLineColor(4)
+hE_Nu2_Bu.Draw("HIST,E1")
+hE_Nu2_Bc.Scale(1./hE_Nu2_Bc.Integral(0,-1))
+hE_Nu2_Bc.SetLineColor(2)
+hE_Nu2_Bc.Draw("HIST,same,E1")
+
+tt.DrawLatexNDC(0.2,0.96,"#color[2]{B_{c}^{#pm}} or #color[4]{B^{#pm}}  #rightarrow #tau#nu #tau #rightarrow #pi#pi#pi#nu")
+cnt.SaveAs(basepath+"plots/Nu2energy.pdf")
+cnt.SaveAs(basepath+"plots/Nu2energy.png")

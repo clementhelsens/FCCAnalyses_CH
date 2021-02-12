@@ -1,11 +1,16 @@
 import sys
 import ROOT
 
-PDGID=541
+#choose to run Bc2TauNu or Bu2TauNu depending on the PDGIG
+PDGID=541 #Bc
+#PDGID=521 #B
+
 Filter=""
 if PDGID==541:
+    #very small BR so filter to be more efficient in CPU
     Filter="filterMC_pdgID(541, true)(Particle)==true"
 elif PDGID==521:
+    #Complex filter not to have two B in the event that would decay exclusively
     Filter="(filterMC_pdgID(521, false)(Particle)==true && filterMC_pdgID(-521, false)(Particle)==false) || (filterMC_pdgID(521, false)(Particle)==false && filterMC_pdgID(-521, false)(Particle)==true)"
 
 print ("Load cxx analyzers ... ",)
@@ -117,6 +122,8 @@ class analysis():
                .Define("Pion2e_vec",   "getMC_e( Pion2_vec )")
                .Define("Pion3e_vec",   "getMC_e( Pion3_vec )")
 
+
+               # as the size can be 0, need to do this trick to avoid crashes
                .Define("Nu1",  "if (Nu1e_vec.size()>0 && Nu2e_vec.size()>0 && Nu1e_vec[0] > Nu2e_vec[0]) return Nu1_vec; else return Nu2_vec;")
                .Define("Nu2",  "if (Nu1e_vec.size()>0 && Nu2e_vec.size()>0 && Nu1e_vec[0] < Nu2e_vec[0]) return Nu1_vec; else return Nu2_vec;")
                .Define("Pion1", "if (Pion1e_vec.size()>0 && Pion2e_vec.size()>0 && Pion3e_vec.size()>0 && Pion1e_vec[0] > Pion2e_vec[0] && Pion1e_vec[0] > Pion3e_vec[0]) return Pion1_vec; else if (Pion1e_vec.size()>0 && Pion2e_vec.size()>0 && Pion3e_vec.size()>0 && Pion2e_vec[0]>Pion1e_vec[0] && Pion2e_vec[0]>Pion3e_vec[0]) return Pion2_vec; else return Pion3_vec;")
@@ -154,7 +161,7 @@ class analysis():
                # The size of this collection is always 5 provided that Bc2TauNuNuPiPiPi_indices is not empty,
                # possibly including "dummy" particles in case one of the leg did not make a RecoParticle.
                # This is on purpose, to maintain the mapping with the indices - i.e. the 1st particle in 
-               # the list is the mu+, then the mu-, etc.
+               # the list is the Nu_taubar, then the Nu_tau, etc.
                .Define("BRecoParticles",  "if (B2NuNuPiPiPi_indices.size()>0) return selRP_matched_to_list( B2NuNuPiPiPi_indices, MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles,Particle); else return selRP_matched_to_list( Bbar2NuNuPiPiPi_indices, MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles,Particle);")
 
                #Returns the pion with minimum energy
@@ -174,96 +181,6 @@ class analysis():
                .Define("deltaAlpha_max","angular_separation(0)( BRecoParticles )")
                .Define("deltaAlpha_min","angular_separation(1)( BRecoParticles )")
                .Define("deltaAlpha_ave","angular_separation(2)( BRecoParticles )")
-
-
-
-
-
-
-
-
-
-
-               
-               
-                # and the MC legs of the Bs :
-               #.Define("Muplus",  " selMC_leg(1)( Bs2MuMuKK_indices, Particle )")
-               #.Define("Muminus",  " selMC_leg(2)( Bs2MuMuKK_indices, Particle )")
-               #.Define("Kplus",  " selMC_leg(3)( Bs2MuMuKK_indices, Particle )")
-               #.Define("Kminus",  " selMC_leg(4)( Bs2MuMuKK_indices, Particle )")
-
-                # Kinematics of the Bs legs (MC) :
-               #.Define("Muplus_theta",  "getMC_theta( Muplus )")
-               #.Define("Muplus_phi",  "getMC_phi( Muplus )")
-               #.Define("Muplus_e",  "getMC_e( Muplus )")
-               #.Define("Muminus_theta",  "getMC_theta( Muminus )")
-               #.Define("Muminus_phi",  "getMC_phi( Muminus )")
-               #.Define("Muminus_e",  "getMC_e( Muminus )")
-               #.Define("Kplus_theta",  "getMC_theta( Kplus )")
-               #.Define("Kplus_phi",  "getMC_phi( Kplus )")
-               #.Define("Kplus_e",  "getMC_e( Kplus )")
-               #.Define("Kminus_theta",  "getMC_theta( Kminus )")
-               #.Define("Kminus_phi",  "getMC_phi( Kminus )")
-               #.Define("Kminus_e",  "getMC_e( Kminus )")
-
-               #.Define("Bc_theta",   "getMC_theta( Bc )")
-               #.Define("Bc_phi",   "getMC_phi( Bc )")
-               #.Define("Bc_e",   "getMC_e( Bc )")
-
-               
-               # Decay vertex of theBs
-		# does not work...  the endpoint is not filled in the files
-               #.Define("BsDecayVertex",  "getMC_endPoint( Bs )")
-
-               # Careful with the following: if Bs -> Bsbar, this returns the prod vertex of the Bsbar !
-               #.Define("BsDecayVertex",   "getMC_decayVertex(531, false)( Particle, Particle1)")
-
-               # Better use a custom method in Bs2JPsiPhi :
-               #.Define("BsMCDecayVertex",   "BsMCDecayVertex( Bs2MuMuKK_indices, Particle )")
-
-               # Returns the RecoParticles associated with the 4 Bs decay products.
-               # The size of this collection is always 4 provided that Bs2MuMuKK_indices is not empty,
-               # possibly including "dummy" particles in case one of the leg did not make a RecoParticle.
-               # This is on purpose, to maintain the mapping with the indices - i.e. the 1st particle in 
-               # the list is the mu+, then the mu-, etc.
-               #.Define("BsRecoParticles",  "selRP_matched_to_list( Bs2MuMuKK_indices, MCRecoAssociations0,MCRecoAssociations1,ReconstructedParticles,Particle)")
-
-
-               # the reco'ed Bs legs
-               #.Define("RecoMuplus",   "selRP_leg(0)( BsRecoParticles )")
-               #.Define("RecoMuminus",  "selRP_leg(1)( BsRecoParticles )")
-               #.Define("RecoKplus",    "selRP_leg(2)( BsRecoParticles )")
-               #.Define("RecoKminus",   "selRP_leg(3)( BsRecoParticles )")
-               # and the kinematics :
-               #.Define("RecoMuplus_theta",  "getRP_theta( RecoMuplus )")
-               #.Define("RecoMuplus_phi",  "getRP_phi( RecoMuplus )")
-               #.Define("RecoMuplus_e",  "getRP_e( RecoMuplus )")
-               #.Define("RecoMuminus_theta",  "getRP_theta( RecoMuminus )")
-               #.Define("RecoMuminus_phi",  "getRP_phi( RecoMuminus )")
-               #.Define("RecoMuminus_e",  "getRP_e( RecoMuminus )")
-               #.Define("RecoKplus_theta",  "getRP_theta( RecoKplus )")
-               #.Define("RecoKplus_phi",  "getRP_phi( RecoKplus )")
-               #.Define("RecoKplus_e",  "getRP_e( RecoKplus )")
-               #.Define("RecoKminus_theta",  "getRP_theta( RecoKminus )")
-               #.Define("RecoKminus_phi",  "getRP_phi( RecoKminus )")
-               #.Define("RecoKminus_e",  "getRP_e( RecoKminus )")
-
-               # the reco'ed legs, with the momenta at the Bs decay vertex
-	       # This is not needed for the vertexing here. This was mostly to check
-     	       # my propagation of the tracks from their point of dca to the Bs vertex.
-               #.Define("RecoMuplus_atVertex",  "selRP_leg_atVertex(0) ( BsRecoParticles, BsVertexObject, EFlowTrack_1 )")
-               #.Define("RecoMuplus_atVertex_theta",   "getRP_theta( RecoMuplus_atVertex )")
-               #.Define("RecoMuplus_atVertex_phi",   "getRP_phi( RecoMuplus_atVertex )")
-               #.Define("RecoMuminus_atVertex",  "selRP_leg_atVertex(1) ( BsRecoParticles, BsVertexObject, EFlowTrack_1 )")
-               #.Define("RecoMuminus_atVertex_theta",   "getRP_theta( RecoMuminus_atVertex )")
-               #.Define("RecoMuminus_atVertex_phi",   "getRP_phi( RecoMuminus_atVertex )")
-               #.Define("RecoKplus_atVertex",  "selRP_leg_atVertex(2) ( BsRecoParticles, BsVertexObject, EFlowTrack_1 )")
-               #.Define("RecoKplus_atVertex_theta",   "getRP_theta( RecoKplus_atVertex )")
-               #.Define("RecoKplus_atVertex_phi",   "getRP_phi( RecoKplus_atVertex )")
-               #.Define("RecoKminus_atVertex",  "selRP_leg_atVertex(3) ( BsRecoParticles, BsVertexObject, EFlowTrack_1 )")
-               #.Define("RecoKminus_atVertex_theta",   "getRP_theta( RecoKminus_atVertex )")
-               #.Define("RecoKminus_atVertex_phi",   "getRP_phi( RecoKminus_atVertex )")
-
 
         )
 
